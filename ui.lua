@@ -44,6 +44,7 @@ function UI.CreateWindow(options)
 		Position = UDim2.new(0, 0, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundColor3 = themeManager.Current.TopBar,
+		Active = true,
 		Visible = false
 	}, root)
 	Utils.AddCorner(dockScrollTrack, 4)
@@ -63,6 +64,7 @@ function UI.CreateWindow(options)
 		Position = UDim2.new(0, 40, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
 		BackgroundColor3 = themeManager.Current.MainBg,
+		Active = true,
 		Visible = false,
 		ZIndex = 1
 	}, root)
@@ -153,6 +155,7 @@ function UI.CreateWindow(options)
 		Size = UDim2.new(0, 804, 0, 520),
 		Position = UDim2.new(0, 68, 0, 0),
 		BackgroundColor3 = themeManager.Current.MainBg,
+		Active = true,
 		ZIndex = 3
 	}, root)
 	Utils.AddCorner(mainWindow, 22)
@@ -162,6 +165,7 @@ function UI.CreateWindow(options)
 		Name = "TopBar",
 		Size = UDim2.new(1, 0, 0, 52),
 		BackgroundColor3 = themeManager.Current.TopBar,
+		Active = true,
 		ZIndex = 4
 	}, mainWindow)
 	Utils.AddCorner(topBar, 22)
@@ -202,6 +206,7 @@ function UI.CreateWindow(options)
 		Size = UDim2.new(1, 0, 0, 24),
 		Position = UDim2.new(0, 0, 0, 36),
 		BackgroundColor3 = themeManager.Current.MainBg,
+		Active = true,
 		ZIndex = 7
 	}, mainWindow)
 	themeManager:Bind(topBarMask, "BackgroundColor3", "MainBg")
@@ -211,6 +216,7 @@ function UI.CreateWindow(options)
 		Size = UDim2.new(1, -24, 1, -60),
 		Position = UDim2.new(0, 12, 0, 48),
 		BackgroundTransparency = 1,
+		Active = true,
 		ZIndex = 8
 	}, mainWindow)
 
@@ -234,7 +240,7 @@ function UI.CreateWindow(options)
 		Window.IsAnimating = false
 	end)
 
-    -- Регистрация любого RBXScriptConnection (RenderStepped, Heartbeat, InputBegan) или функции очистки
+	-- Регистрация любого RBXScriptConnection (RenderStepped, Heartbeat, InputBegan) или функции очистки
 	function Window:AddCleanup(item)
 		table.insert(self.Cleanups, item)
 		return item
@@ -267,7 +273,7 @@ function UI.CreateWindow(options)
 
 		-- 3. Очищаем глобальный объект
 		_G.PrismUI = nil
-    end
+	end
 
 	function Window:SelectTab(tabObj)
 		if self.ActiveTab == tabObj then return end
@@ -376,6 +382,7 @@ function UI.CreateWindow(options)
 				Position = xPos,
 				BackgroundColor3 = themeManager.Current.ColumnBg,
 				ClipsDescendants = true,
+				Active = true,
 				ZIndex = 8
 			}, tabContainer)
 			Utils.AddCorner(col, 18)
@@ -421,6 +428,7 @@ function UI.CreateWindow(options)
 				ScrollBarThickness = 0,
 				CanvasSize = UDim2.new(0, 0, 0, 0),
 				AutomaticCanvasSize = Enum.AutomaticSize.Y,
+				Active = true,
 				ZIndex = 9
 			}, col)
 
@@ -550,7 +558,7 @@ function UI.CreateWindow(options)
 
 	function Window:AddGameIcon(iconConfig)
 		iconConfig = iconConfig or {}
-		self.DockSlotCount += 1
+		self.DockSlotCount = self.DockSlotCount + 1
 
 		local imageStr = ""
 		if type(iconConfig.Image) == "number" then
@@ -624,7 +632,6 @@ function UI.CreateWindow(options)
 			end)
 		end
 
-		-- Возвращаем обновление высоты и видимости левого дока!
 		updateDockLayout(self.DockSlotCount)
 		return slotBtn
 	end
