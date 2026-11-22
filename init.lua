@@ -1,4 +1,4 @@
--- Если старая копия окна уже открыта — чисто выгружаем её перед перезапуском
+-- Автовыгрузка старой копии при перезапуске
 if _G.PrismUI and _G.PrismUI.ActiveWindow then
 	pcall(function()
 		_G.PrismUI.ActiveWindow:Unload()
@@ -90,7 +90,6 @@ local Window = _G.PrismUI:CreateWindow({
 })
 _G.PrismUI.ActiveWindow = Window
 
--- Регистрация темы и шрифта в конфиги
 Configs:Register("UI_Theme", {
 	Get = function()
 		return Window.Theme.Current.Name
@@ -121,7 +120,7 @@ local fontDrop = homeTab.Left:AddDropdown({
 })
 Configs:Register("UI_Font", fontDrop)
 
-homeTab.Left:AddKeybind({
+local hideKeybind = homeTab.Left:AddKeybind({
 	Name = "Скрыть UI",
 	Default = Enum.KeyCode.RightShift,
 	Tip = "Горячая клавиша скрытия и открытия окна",
@@ -129,6 +128,7 @@ homeTab.Left:AddKeybind({
 		Window:ToggleVisible()
 	end
 })
+Configs:Register("UI_HideKey", hideKeybind)
 
 homeTab.Left:AddButton({
 	Name = "Выгрузка",
@@ -139,15 +139,16 @@ homeTab.Left:AddButton({
 	end
 })
 
-homeTab.Left:AddText("Выбери игру на панели слева, чтобы открыть скрипт под нужный плейс.")
+homeTab.Left:AddText("ПКМ по любой функции открывает меню биндов (Hold/Toggle + значение). Скрипты под игры — в меню слева.")
 
--- Управление конфигами в правой колонке
-local selectedConfigName = "default"
+-- Управление конфигами + Autoload в правой колонке
+local autoloadName = Configs:GetAutoload()
+local selectedConfigName = autoloadName
 local cfgListDrop = nil
 
 local cfgNameBox = homeTab.Right:AddTextBox({
 	Name = "Название",
-	Default = "default",
+	Default = autoloadName,
 	Placeholder = "Имя конфига...",
 	Tip = "Введи имя для нового или существующего конфига",
 	Callback = function(txt)
@@ -161,7 +162,7 @@ local cfgNameBox = homeTab.Right:AddTextBox({
 cfgListDrop = homeTab.Right:AddDropdown({
 	Name = "Список",
 	Options = Configs:GetList(),
-	Default = "default",
+	Default = autoloadName,
 	Tip = "Выбор сохранённого конфига из папки PrismUI/configs",
 	Callback = function(choice)
 		selectedConfigName = choice
@@ -172,7 +173,7 @@ cfgListDrop = homeTab.Right:AddDropdown({
 homeTab.Right:AddButton({
 	Name = "Запись",
 	ButtonText = "Сохранить конфиг",
-	Tip = "Сохраняет все текущие настройки в JSON-файл",
+	Tip = "Сохраняет все настройки и ПКМ-бинды в JSON-файл",
 	Callback = function()
 		local ok = Configs:Save(selectedConfigName)
 		if ok and cfgListDrop then
@@ -184,13 +185,45 @@ homeTab.Right:AddButton({
 homeTab.Right:AddButton({
 	Name = "Чтение",
 	ButtonText = "Загрузить конфиг",
-	Tip = "Применяет настройки из выбранного конфига",
+	Tip = "Применяет настройки и бинды из выбранного конфига",
 	Callback = function()
 		Configs:Load(selectedConfigName)
 	end
 })
 
-Configs:Load("default")
+local autoloadLabel = homeTab.Right:AddText("Autoload: " .. autoloadName)
+
+homeTab.Right:AddButton({
+	Name = "Автостарт",
+	ButtonText = "Сделать Autoload",
+	Tip = "Выбранный конфиг будет автоматически загружаться при инжекте",
+	Callback = function()
+		if Configs:SetAutoload(selectedConfigName) then
+			autoloadName = selectedConfigName
+			autoloadLabel:SetText("Autoload: " .. autoloadName)
+		end
+	end
+})
+
+homeTab.Right:AddButton({
+	Name = "Удаление",
+	ButtonText = "Удалить конфиг",
+	Tip = "Удаляет выбранный файл конфига с диска",
+	Callback = function()
+		local ok = Configs:Delete(selectedConfigName)
+		if ok and cfgListDrop then
+			local updatedList = Configs:GetList()
+			cfgListDrop:Refresh(updatedList)
+			selectedConfigName = updatedList[1] or "default"
+			cfgNameBox:Set(selectedConfigName)
+			autoloadName = Configs:GetAutoload()
+			autoloadLabel:SetText("Autoload: " .. autoloadName)
+		end
+	end
+})
+
+-- Автозагрузка выбранного конфига при запуске
+Configs:Load(autoloadName)
 
 -- 2. Вкладка игры
 local stealEggTab = nil
@@ -212,7 +245,7 @@ local function openStealAnEgg()
 	local autoStealToggle = tab.Left:AddToggle({
 		Name = "Auto Steal",
 		Default = false,
-		Tip = "Автоматически крадет ближайшие яйца в радиусе",
+		Tip = "Автоматически крадет ближайшие яйца в радиусе (ПКМ для бинда)",
 		Callback = function(state)
 			print("Auto Steal:", state)
 		end
@@ -223,7 +256,7 @@ local function openStealAnEgg()
 		Name = "Редкость",
 		Options = { "Любая", "Редкие", "Мифические", "Секретные" },
 		Default = "Любая",
-		Tip = "Фильтр яиц по редкости",
+		Tip = "Фильтр яиц по редкости (ПКМ для бинда)",
 		Callback = function(choice)
 			print("Редкость:", choice)
 		end
@@ -241,21 +274,22 @@ local function openStealAnEgg()
 	})
 	Configs:Register("SAE_Mutations", mutationsMulti)
 
-	tab.Left:AddButton({
+	local tpBaseBtn = tab.Left:AddButton({
 		Name = "База",
 		ButtonText = "Телепорт на базу",
-		Tip = "Мгновенно возвращает на твою базу с яйцом",
+		Tip = "Мгновенно возвращает на твою базу с яйцом (ПКМ для бинда)",
 		Callback = function()
 			print("ТП на базу")
 		end
 	})
+	Configs:Register("SAE_TpBase", tpBaseBtn)
 
 	local walkSlider = tab.Right:AddSlider({
 		Name = "Walkspeed",
 		Min = 16,
 		Max = 120,
 		OffText = "Выкл.",
-		Tip = "Скорость передвижения персонажа",
+		Tip = "Скорость передвижения (ПКМ -> Mouse 5 -> 50)",
 		Callback = function(speed)
 			local char = Players.LocalPlayer.Character
 			if char and char:FindFirstChild("Humanoid") then
@@ -270,7 +304,7 @@ local function openStealAnEgg()
 		Min = 50,
 		Max = 200,
 		OffText = "Выкл.",
-		Tip = "Сила прыжка персонажа",
+		Tip = "Сила прыжка персонажа (ПКМ для бинда)",
 		Callback = function(jp)
 			local char = Players.LocalPlayer.Character
 			if char and char:FindFirstChild("Humanoid") then
@@ -285,14 +319,13 @@ local function openStealAnEgg()
 	local noclipToggle = tab.Right:AddToggle({
 		Name = "NoClip",
 		Default = false,
-		Tip = "Позволяет проходить сквозь стены и двери",
+		Tip = "Позволяет проходить сквозь стены и двери (ПКМ для бинда)",
 		Callback = function(state)
 			noclipEnabled = state
 		end
 	})
 	Configs:Register("SAE_NoClip", noclipToggle)
 
-	-- Регистрируем цикл NoClip и сброс характеристик в Window:AddCleanup
 	local noclipConn = RunService.Stepped:Connect(function()
 		if not noclipEnabled then return end
 		local char = Players.LocalPlayer.Character
@@ -315,6 +348,7 @@ local function openStealAnEgg()
 		end
 	end)
 
+	-- Подгружаем значения и ПКМ-бинды из Autoload / выбранного конфига для вкладки игры
 	Configs:Load(selectedConfigName)
 	Window:SelectTab(tab)
 end

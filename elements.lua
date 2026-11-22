@@ -18,8 +18,503 @@ local function startBreathing(targetInst, propName, fromVal, toVal)
 	return tween
 end
 
+local SHORT_INPUT_NAMES = {
+	MouseButton1 = "MB1",
+	MouseButton2 = "MB2",
+	MouseButton3 = "MB3",
+	MouseButton4 = "MB4",
+	MouseButton5 = "MB5",
+	LeftShift = "LShift",
+	RightShift = "RShift",
+	LeftControl = "LCtrl",
+	RightControl = "RCtrl",
+	LeftAlt = "LAlt",
+	RightAlt = "RAlt"
+}
+
+local function formatInputShort(enumTypeStr, enumName)
+	if not enumName or enumName == "" then return "" end
+	return SHORT_INPUT_NAMES[enumName] or enumName
+end
+
+local function matchesInput(input, bindData)
+	if not bindData or not bindData.Name then return false end
+	if bindData.Type == "KeyCode" then
+		return input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode.Name == bindData.Name
+	elseif bindData.Type == "UserInputType" then
+		return input.UserInputType.Name == bindData.Name
+	end
+	return false
+end
+
 function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 	local api = {}
+	local activeContextPopup = nil
+
+	local function closeActivePopup()
+		if activeContextPopup and activeContextPopup.Parent then
+			activeContextPopup:Destroy()
+		end
+		activeContextPopup = nil
+	end
+
+	-- Универсальный контроллер Neverlose ПКМ-бинда для любого элемента
+	local function attachRightClickBinder(triggerTargets, labelTextInst, bindConfig)
+		local bindState = nil -- { Type = "KeyCode"|"UserInputType", Name = "...", Mode = "Hold"|"Toggle", TargetValue = ... }
+		local isListening = false
+		local isHoldActive = false
+		local isToggleActive = false
+		local savedBaseValue = nil
+
+		local baseTitle = labelTextInst.Text
+
+		local function refreshLabelBadge()
+			if bindState and bindState.Name then
+				local shortName = formatInputShort(bindState.Type, bindState.Name)
+				labelTextInst.Text = string.format("%s [%s]", baseTitle, shortName)
+			else
+				labelTextInst.Text = baseTitle
+			end
+		end
+
+		local function applyBindActivated()
+			if bindConfig.Kind == "Button" then
+				if bindConfig.Trigger then bindConfig.Trigger() end
+				return
+			end
+
+			if bindConfig.Get then
+				savedBaseValue = bindConfig.Get()
+			end
+
+			if bindConfig.Kind == "Toggle" then
+				if bindConfig.Set then
+					bindConfig.Set(true)
+				end
+			elseif bindConfig.Kind == "Slider" or bindConfig.Kind == "Dropdown" then
+				if bindConfig.Set and bindState.TargetValue ~= nil then
+					bindConfig.Set(bindState.TargetValue)
+				end
+			end
+		end
+
+		local function applyBindDeactivated()
+			if bindConfig.Kind == "Button" then return end
+
+			if bindConfig.Kind == "Toggle" then
+				if bindConfig.Set then
+					bindConfig.Set(false)
+				end
+			elseif bindConfig.Kind == "Slider" or bindConfig.Kind == "Dropdown" then
+				if bindConfig.Set then
+					bindConfig.Set(savedBaseValue)
+				end
+			end
+		end
+
+		local function openContextMenu(anchorGui)
+			closeActivePopup()
+
+			local popup = Utils.Create("Frame", {
+				Name = "NeverloseBindPopup",
+				Size = UDim2.new(0, 178, 0, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				BackgroundColor3 = themeManager.Current.MainBg,
+				ZIndex = 80
+			}, overlayRoot or columnContainer)
+			Utils.AddCorner(popup, 10)
+			themeManager:Bind(popup, "BackgroundColor3", "MainBg")
+			activeContextPopup = popup
+
+			local stroke = Utils.Create("UIStroke", {
+				Color = themeManager.Current.Accent,
+				Thickness = 1.5,
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			}, popup)
+			themeManager:Bind(stroke, "Color", "Accent")
+
+			Utils.Create("UIListLayout", {
+				Padding = UDim.new(0, 5),
+				SortOrder = Enum.SortOrder.LayoutOrder
+			}, popup)
+
+			Utils.Create("UIPadding", {
+				PaddingTop = UDim.new(0, 7),
+				PaddingBottom = UDim.new(0, 7),
+				PaddingLeft = UDim.new(0, 8),
+				PaddingRight = UDim.new(0, 8)
+			}, popup)
+
+			if overlayRoot then
+				local rel = anchorGui.AbsolutePosition - overlayRoot.AbsolutePosition
+				popup.Position = UDim2.new(0, math.clamp(rel.X, 6, 680), 0, math.clamp(rel.Y + 28, 6, 390))
+			else
+				popup.Position = UDim2.new(0, 10, 0, 28)
+			end
+
+			-- Заголовок + кнопка очистки
+			local headRow = Utils.Create("Frame", {
+				Size = UDim2.new(1, 0, 0, 18),
+				BackgroundTransparency = 1,
+				LayoutOrder = 1,
+				ZIndex = 81
+			}, popup)
+
+			local headTitle = Utils.Create("TextLabel", {
+				Size = UDim2.new(1, -22, 1, 0),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.GothamBold,
+				Text = "Бинд: " .. baseTitle,
+				TextSize = 11,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextColor3 = themeManager.Current.Text,
+				ZIndex = 82
+			}, headRow)
+			themeManager:Bind(headTitle, "TextColor3", "Text")
+
+			local clearBtn = Utils.Create("TextButton", {
+				Size = UDim2.new(0, 18, 0, 18),
+				Position = UDim2.new(1, -18, 0, 0),
+				BackgroundColor3 = themeManager.Current.KnobOff,
+				Font = Enum.Font.GothamBold,
+				Text = "✕",
+				TextSize = 10,
+				TextColor3 = Color3.new(1, 1, 1),
+				AutoButtonColor = false,
+				ZIndex = 82
+			}, headRow)
+			Utils.AddCorner(clearBtn, 6)
+
+			-- Строка выбора клавиши
+			local keyRow = Utils.Create("Frame", {
+				Size = UDim2.new(1, 0, 0, 22),
+				BackgroundTransparency = 1,
+				LayoutOrder = 2,
+				ZIndex = 81
+			}, popup)
+
+			local keyLbl = Utils.Create("TextLabel", {
+				Size = UDim2.new(0, 62, 1, 0),
+				BackgroundTransparency = 1,
+				Font = Enum.Font.GothamMedium,
+				Text = "Клавиша:",
+				TextSize = 11,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextColor3 = themeManager.Current.Text,
+				ZIndex = 82
+			}, keyRow)
+			themeManager:Bind(keyLbl, "TextColor3", "Text")
+
+			local keyBtn = Utils.Create("TextButton", {
+				Size = UDim2.new(1, -66, 1, 0),
+				Position = UDim2.new(0, 66, 0, 0),
+				BackgroundColor3 = themeManager.Current.ElementBg,
+				Font = Enum.Font.GothamBold,
+				Text = bindState and formatInputShort(bindState.Type, bindState.Name) or "Нет",
+				TextSize = 11,
+				TextColor3 = themeManager.Current.Text,
+				AutoButtonColor = false,
+				ZIndex = 82
+			}, keyRow)
+			Utils.AddCorner(keyBtn, 6)
+			themeManager:Bind(keyBtn, "BackgroundColor3", "ElementBg")
+			themeManager:Bind(keyBtn, "TextColor3", "Text")
+
+			keyBtn.MouseButton1Click:Connect(function()
+				isListening = true
+				keyBtn.Text = "..."
+				Utils.Tween(keyBtn, 0.12, { BackgroundColor3 = themeManager.Current.KnobOn })
+			end)
+
+			-- Режим Hold / Toggle (для всего, кроме Button)
+			if bindConfig.Kind ~= "Button" then
+				local modeRow = Utils.Create("Frame", {
+					Size = UDim2.new(1, 0, 0, 22),
+					BackgroundTransparency = 1,
+					LayoutOrder = 3,
+					ZIndex = 81
+				}, popup)
+
+				local modeLbl = Utils.Create("TextLabel", {
+					Size = UDim2.new(0, 62, 1, 0),
+					BackgroundTransparency = 1,
+					Font = Enum.Font.GothamMedium,
+					Text = "Режим:",
+					TextSize = 11,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextColor3 = themeManager.Current.Text,
+					ZIndex = 82
+				}, modeRow)
+				themeManager:Bind(modeLbl, "TextColor3", "Text")
+
+				local modeBtn = Utils.Create("TextButton", {
+					Size = UDim2.new(1, -66, 1, 0),
+					Position = UDim2.new(0, 66, 0, 0),
+					BackgroundColor3 = themeManager.Current.ElementBg,
+					Font = Enum.Font.GothamBold,
+					Text = (bindState and bindState.Mode) or "Hold",
+					TextSize = 11,
+					TextColor3 = themeManager.Current.Text,
+					AutoButtonColor = false,
+					ZIndex = 82
+				}, modeRow)
+				Utils.AddCorner(modeBtn, 6)
+				themeManager:Bind(modeBtn, "BackgroundColor3", "ElementBg")
+				themeManager:Bind(modeBtn, "TextColor3", "Text")
+
+				modeBtn.MouseButton1Click:Connect(function()
+					if not bindState then
+						bindState = { Type = "KeyCode", Name = "", Mode = "Hold", TargetValue = bindConfig.DefaultTarget }
+					end
+					bindState.Mode = (bindState.Mode == "Hold") and "Toggle" or "Hold"
+					modeBtn.Text = bindState.Mode
+				end)
+			end
+
+			-- Целевое значение (для Slider — число, например Walkspeed = 50)
+			if bindConfig.Kind == "Slider" then
+				local valRow = Utils.Create("Frame", {
+					Size = UDim2.new(1, 0, 0, 22),
+					BackgroundTransparency = 1,
+					LayoutOrder = 4,
+					ZIndex = 81
+				}, popup)
+
+				local valLbl = Utils.Create("TextLabel", {
+					Size = UDim2.new(0, 62, 1, 0),
+					BackgroundTransparency = 1,
+					Font = Enum.Font.GothamMedium,
+					Text = "Значение:",
+					TextSize = 11,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextColor3 = themeManager.Current.Text,
+					ZIndex = 82
+				}, valRow)
+				themeManager:Bind(valLbl, "TextColor3", "Text")
+
+				local initialTarget = (bindState and bindState.TargetValue) or bindConfig.DefaultTarget or bindConfig.Max or 50
+				if bindState and bindState.TargetValue == nil then
+					bindState.TargetValue = initialTarget
+				end
+
+				local valBox = Utils.Create("TextBox", {
+					Size = UDim2.new(1, -66, 1, 0),
+					Position = UDim2.new(0, 66, 0, 0),
+					BackgroundColor3 = themeManager.Current.TrackBg,
+					Font = Enum.Font.GothamBold,
+					Text = tostring(initialTarget),
+					TextSize = 11,
+					TextColor3 = themeManager.Current.Text,
+					ClearTextOnFocus = false,
+					ZIndex = 82
+				}, valRow)
+				Utils.AddCorner(valBox, 6)
+				themeManager:Bind(valBox, "BackgroundColor3", "TrackBg")
+				themeManager:Bind(valBox, "TextColor3", "Text")
+
+				valBox.FocusLost:Connect(function()
+					local num = tonumber(valBox.Text)
+					if num then
+						num = math.clamp(num, bindConfig.Min or 0, bindConfig.Max or 9999)
+						valBox.Text = tostring(num)
+						if not bindState then
+							bindState = { Type = "KeyCode", Name = "", Mode = "Hold", TargetValue = num }
+						else
+							bindState.TargetValue = num
+						end
+					end
+				end)
+			elseif bindConfig.Kind == "Dropdown" and bindConfig.GetOptions then
+				local valRow = Utils.Create("Frame", {
+					Size = UDim2.new(1, 0, 0, 22),
+					BackgroundTransparency = 1,
+					LayoutOrder = 4,
+					ZIndex = 81
+				}, popup)
+
+				local valLbl = Utils.Create("TextLabel", {
+					Size = UDim2.new(0, 62, 1, 0),
+					BackgroundTransparency = 1,
+					Font = Enum.Font.GothamMedium,
+					Text = "Пункт:",
+					TextSize = 11,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextColor3 = themeManager.Current.Text,
+					ZIndex = 82
+				}, valRow)
+				themeManager:Bind(valLbl, "TextColor3", "Text")
+
+				local opts = bindConfig.GetOptions()
+				local curOpt = (bindState and bindState.TargetValue) or opts[1] or ""
+				if bindState and bindState.TargetValue == nil then
+					bindState.TargetValue = curOpt
+				end
+
+				local optCycleBtn = Utils.Create("TextButton", {
+					Size = UDim2.new(1, -66, 1, 0),
+					Position = UDim2.new(0, 66, 0, 0),
+					BackgroundColor3 = themeManager.Current.ElementBg,
+					Font = Enum.Font.GothamBold,
+					Text = tostring(curOpt),
+					TextSize = 11,
+					TextTruncate = Enum.TextTruncate.AtEnd,
+					TextColor3 = themeManager.Current.Text,
+					AutoButtonColor = false,
+					ZIndex = 82
+				}, valRow)
+				Utils.AddCorner(optCycleBtn, 6)
+				themeManager:Bind(optCycleBtn, "BackgroundColor3", "ElementBg")
+				themeManager:Bind(optCycleBtn, "TextColor3", "Text")
+
+				optCycleBtn.MouseButton1Click:Connect(function()
+					local list = bindConfig.GetOptions()
+					if #list == 0 then return end
+					local nextIdx = 1
+					for idx, v in ipairs(list) do
+						if v == curOpt then
+							nextIdx = (idx % #list) + 1
+							break
+						end
+					end
+					curOpt = list[nextIdx]
+					optCycleBtn.Text = tostring(curOpt)
+					if not bindState then
+						bindState = { Type = "KeyCode", Name = "", Mode = "Hold", TargetValue = curOpt }
+					else
+						bindState.TargetValue = curOpt
+					end
+				end)
+			end
+
+			clearBtn.MouseButton1Click:Connect(function()
+				bindState = nil
+				isListening = false
+				isHoldActive = false
+				isToggleActive = false
+				refreshLabelBadge()
+				closeActivePopup()
+			end)
+
+			-- Захват новой клавиши или кнопки мыши (MouseButton1..5)
+			local listenConn
+			listenConn = UserInputService.InputBegan:Connect(function(input)
+				if not popup or not popup.Parent then
+					listenConn:Disconnect()
+					return
+				end
+
+				if isListening then
+					local capturedType = nil
+					local capturedName = nil
+
+					if input.UserInputType == Enum.UserInputType.Keyboard then
+						if input.KeyCode == Enum.KeyCode.Escape then
+							isListening = false
+							keyBtn.Text = (bindState and bindState.Name ~= "") and formatInputShort(bindState.Type, bindState.Name) or "Нет"
+							Utils.Tween(keyBtn, 0.12, { BackgroundColor3 = themeManager.Current.ElementBg })
+							return
+						end
+						capturedType = "KeyCode"
+						capturedName = input.KeyCode.Name
+					elseif string.find(input.UserInputType.Name, "MouseButton") then
+						capturedType = "UserInputType"
+						capturedName = input.UserInputType.Name
+					end
+
+					if capturedType and capturedName then
+						isListening = false
+						local prevMode = (bindState and bindState.Mode) or "Hold"
+						local prevTarget = (bindState and bindState.TargetValue) or bindConfig.DefaultTarget
+						bindState = {
+							Type = capturedType,
+							Name = capturedName,
+							Mode = prevMode,
+							TargetValue = prevTarget
+						}
+						keyBtn.Text = formatInputShort(capturedType, capturedName)
+						Utils.Tween(keyBtn, 0.12, { BackgroundColor3 = themeManager.Current.ElementBg })
+						refreshLabelBadge()
+					end
+				elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
+					-- Закрываем попап при клике мимо него
+					local mPos = input.Position
+					local pPos = popup.AbsolutePosition
+					local pSize = popup.AbsoluteSize
+					local inside = mPos.X >= pPos.X and mPos.X <= pPos.X + pSize.X and mPos.Y >= pPos.Y and mPos.Y <= pPos.Y + pSize.Y
+					if not inside then
+						listenConn:Disconnect()
+						closeActivePopup()
+					end
+				end
+			end)
+		end
+
+		for _, targetGui in ipairs(triggerTargets) do
+			targetGui.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton2 then
+					openContextMenu(targetGui)
+				end
+			end)
+		end
+
+		-- Глобальное срабатывание назначенного бинда (Hold / Toggle)
+		local beganConn
+		beganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+			if not labelTextInst or not labelTextInst.Parent then
+				beganConn:Disconnect()
+				return
+			end
+			if gameProcessed or isListening or not bindState or bindState.Name == "" then return end
+
+			if matchesInput(input, bindState) then
+				if bindConfig.Kind == "Button" then
+					applyBindActivated()
+				elseif bindState.Mode == "Toggle" then
+					isToggleActive = not isToggleActive
+					if isToggleActive then
+						applyBindActivated()
+					else
+						applyBindDeactivated()
+					end
+				else
+					-- Hold
+					if not isHoldActive then
+						isHoldActive = true
+						applyBindActivated()
+					end
+				end
+			end
+		end)
+
+		local endedConn
+		endedConn = UserInputService.InputEnded:Connect(function(input)
+			if not labelTextInst or not labelTextInst.Parent then
+				endedConn:Disconnect()
+				return
+			end
+			if not bindState or bindState.Name == "" then return end
+
+			if matchesInput(input, bindState) then
+				if bindState.Mode ~= "Toggle" and isHoldActive then
+					isHoldActive = false
+					applyBindDeactivated()
+				end
+			end
+		end)
+
+		return {
+			GetBind = function()
+				return bindState
+			end,
+			SetBind = function(newBind)
+				bindState = newBind
+				isHoldActive = false
+				isToggleActive = false
+				refreshLabelBadge()
+			end
+		}
+	end
 
 	local function createHeaderLabel(row, textStr, tipText, fixedWidth)
 		local labelBox = Utils.Create("Frame", {
@@ -133,10 +628,10 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end)
 		end
 
-		return labelBox
+		return labelBox, labelText
 	end
 
-	-- 1. Toggle
+	-- 1. Toggle (с ПКМ-биндом Hold/Toggle)
 	function api:AddToggle(config)
 		config = config or {}
 		local state = config.Default or false
@@ -149,7 +644,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			ZIndex = 9
 		}, columnContainer)
 
-		createHeaderLabel(row, config.Name or "Toggle", config.Tip, 84)
+		local labelBox, labelText = createHeaderLabel(row, config.Name or "Toggle", config.Tip, 84)
 
 		local track = Utils.Create("TextButton", {
 			Size = UDim2.new(0, 40, 0, 20),
@@ -185,28 +680,36 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end
 		end)
 
-		track.MouseButton1Click:Connect(function()
-			state = not state
+		local function setState(newState)
+			state = newState
 			updateVisual()
 			callback(state)
+		end
+
+		track.MouseButton1Click:Connect(function()
+			setState(not state)
 		end)
 
-		return {
-			Set = function(_, newState)
-				state = newState
-				updateVisual()
-				callback(state)
-			end,
+		local binder = attachRightClickBinder({ labelBox, track }, labelText, {
+			Kind = "Toggle",
+			Set = setState,
 			Get = function() return state end
+		})
+
+		return {
+			Set = function(_, newState) setState(newState) end,
+			Get = function() return state end,
+			GetBind = binder.GetBind,
+			SetBind = function(_, b) binder.SetBind(b) end
 		}
 	end
 
-	-- 2. Slider
+	-- 2. Slider (с ПКМ-биндом, например Mouse 5 -> Walkspeed 50)
 	function api:AddSlider(config)
 		config = config or {}
 		local minVal = config.Min or 16
 		local maxVal = config.Max or 100
-		local currentVal = config.Default or minVal
+		local currentVal = nil
 		local offText = config.OffText or "Выкл."
 		local callback = config.Callback or function() end
 
@@ -217,7 +720,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			ZIndex = 9
 		}, columnContainer)
 
-		createHeaderLabel(row, config.Name or "Slider", config.Tip, 84)
+		local labelBox, labelText = createHeaderLabel(row, config.Name or "Slider", config.Tip, 84)
 
 		local track = Utils.Create("TextButton", {
 			Size = UDim2.new(0, 100, 0, 20),
@@ -295,13 +798,21 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end
 
 			if alpha <= 0.02 then
-				currentVal = minVal
+				currentVal = nil
 				valueLabel.Text = offText
 				callback(nil)
 			else
 				currentVal = math.floor(minVal + (maxVal - minVal) * alpha)
 				valueLabel.Text = tostring(currentVal)
 				callback(currentVal)
+			end
+		end
+
+		local function setValue(val)
+			if not val or val <= minVal then
+				setFromPercent(0, true)
+			else
+				setFromPercent((val - minVal) / (maxVal - minVal), true)
 			end
 		end
 
@@ -343,19 +854,24 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end
 		end)
 
-		return {
-			Set = function(_, val)
-				if not val or val <= minVal then
-					setFromPercent(0, true)
-				else
-					setFromPercent((val - minVal) / (maxVal - minVal), true)
-				end
-			end,
+		local binder = attachRightClickBinder({ labelBox, track }, labelText, {
+			Kind = "Slider",
+			Min = minVal,
+			Max = maxVal,
+			DefaultTarget = math.floor((minVal + maxVal) * 0.5),
+			Set = setValue,
 			Get = function() return currentVal end
+		})
+
+		return {
+			Set = function(_, val) setValue(val) end,
+			Get = function() return currentVal end,
+			GetBind = binder.GetBind,
+			SetBind = function(_, b) binder.SetBind(b) end
 		}
 	end
 
-	-- 3. Button
+	-- 3. Button (с ПКМ-биндом срабатывания по клавише/кнопке мыши)
 	function api:AddButton(config)
 		config = config or {}
 		local callback = config.Callback or function() end
@@ -367,7 +883,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			ZIndex = 9
 		}, columnContainer)
 
-		createHeaderLabel(row, config.Name or "Action", config.Tip, 84)
+		local labelBox, labelText = createHeaderLabel(row, config.Name or "Action", config.Tip, 84)
 
 		local actionBtn = Utils.Create("TextButton", {
 			Size = UDim2.new(0, 100, 0, 24),
@@ -386,15 +902,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 
 		local btnScale = Utils.Create("UIScale", { Scale = 1 }, actionBtn)
 
-		actionBtn.MouseEnter:Connect(function()
-			Utils.Tween(btnScale, 0.14, { Scale = 1.03 })
-		end)
-
-		actionBtn.MouseLeave:Connect(function()
-			Utils.Tween(btnScale, 0.14, { Scale = 1 })
-		end)
-
-		actionBtn.MouseButton1Click:Connect(function()
+		local function triggerButton()
 			Utils.Tween(btnScale, 0.08, { Scale = 0.94 })
 			Utils.Tween(actionBtn, 0.1, { BackgroundColor3 = themeManager.Current.KnobOn })
 			task.delay(0.12, function()
@@ -404,12 +912,31 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				end
 			end)
 			callback()
+		end
+
+		actionBtn.MouseEnter:Connect(function()
+			Utils.Tween(btnScale, 0.14, { Scale = 1.03 })
 		end)
 
-		return actionBtn
+		actionBtn.MouseLeave:Connect(function()
+			Utils.Tween(btnScale, 0.14, { Scale = 1 })
+		end)
+
+		actionBtn.MouseButton1Click:Connect(triggerButton)
+
+		local binder = attachRightClickBinder({ labelBox, actionBtn }, labelText, {
+			Kind = "Button",
+			Trigger = triggerButton
+		})
+
+		return {
+			Trigger = triggerButton,
+			GetBind = binder.GetBind,
+			SetBind = function(_, b) binder.SetBind(b) end
+		}
 	end
 
-	-- 4. Dropdown
+	-- 4. Dropdown (с ПКМ-биндом на выбор пункта)
 	function api:AddDropdown(config)
 		config = config or {}
 		local options = config.Options or {}
@@ -433,7 +960,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			ZIndex = 9
 		}, wrapper)
 
-		createHeaderLabel(topRow, config.Name or "Выбор", config.Tip, 84)
+		local labelBox, labelText = createHeaderLabel(topRow, config.Name or "Выбор", config.Tip, 84)
 
 		local dropBtn = Utils.Create("TextButton", {
 			Size = UDim2.new(0, 125, 0, 24),
@@ -555,6 +1082,13 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end
 		end
 
+		local function setOption(val)
+			selected = val
+			dropText.Text = tostring(selected)
+			updateOptionColors(true)
+			callback(selected)
+		end
+
 		local function rebuildOptions()
 			for _, child in ipairs(listBox:GetChildren()) do
 				if child:IsA("TextButton") then
@@ -591,11 +1125,8 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				end)
 
 				optBtn.MouseButton1Click:Connect(function()
-					selected = opt
-					dropText.Text = tostring(selected)
-					updateOptionColors(true)
+					setOption(opt)
 					setDropdownOpen(false)
-					callback(selected)
 				end)
 			end
 		end
@@ -609,13 +1140,15 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			setDropdownOpen(not isOpen)
 		end)
 
+		local binder = attachRightClickBinder({ labelBox, dropBtn }, labelText, {
+			Kind = "Dropdown",
+			GetOptions = function() return options end,
+			Set = setOption,
+			Get = function() return selected end
+		})
+
 		return {
-			Set = function(_, val)
-				selected = val
-				dropText.Text = tostring(selected)
-				updateOptionColors(true)
-				callback(selected)
-			end,
+			Set = function(_, val) setOption(val) end,
 			Refresh = function(_, newOpts)
 				options = newOpts
 				rebuildOptions()
@@ -625,7 +1158,9 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 					Utils.Tween(wrapper, 0.18, { Size = UDim2.new(1, 0, 0, 28 + listH) })
 				end
 			end,
-			Get = function() return selected end
+			Get = function() return selected end,
+			GetBind = binder.GetBind,
+			SetBind = function(_, b) binder.SetBind(b) end
 		}
 	end
 
@@ -903,7 +1438,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		}
 	end
 
-	-- 7. Keybind
+	-- 7. Keybind (отдельный элемент-бинд с функцией)
 	function api:AddKeybind(config)
 		config = config or {}
 		local currentKey = config.Default or Enum.KeyCode.RightShift
