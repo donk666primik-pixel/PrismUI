@@ -178,7 +178,11 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		end
 
 		themeManager:OnChanged(function(target)
-			themeManager:TweenProperty(knob, "BackgroundColor3", state and target.KnobOn or target.KnobOff)
+			if themeManager.TweenProperty then
+				themeManager:TweenProperty(knob, "BackgroundColor3", state and target.KnobOn or target.KnobOff)
+			else
+				knob.BackgroundColor3 = state and target.KnobOn or target.KnobOff
+			end
 		end)
 
 		track.MouseButton1Click:Connect(function()
@@ -316,13 +320,23 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end
 		end)
 
-		UserInputService.InputChanged:Connect(function(input)
+		local changedConn
+		changedConn = UserInputService.InputChanged:Connect(function(input)
+			if not track or not track.Parent then
+				changedConn:Disconnect()
+				return
+			end
 			if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 				updateFromInput(input)
 			end
 		end)
 
-		UserInputService.InputEnded:Connect(function(input)
+		local endedConn
+		endedConn = UserInputService.InputEnded:Connect(function(input)
+			if not track or not track.Parent then
+				endedConn:Disconnect()
+				return
+			end
 			if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
 				dragging = false
 				setHoldVisual(false)
@@ -530,7 +544,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				if item.Btn and item.Btn.Parent then
 					local isSel = (item.Opt == selected)
 					local targetBg = isSel and themeManager.Current.KnobOn or themeManager.Current.ElementBg
-					if smooth then
+					if smooth and themeManager.TweenProperty then
 						themeManager:TweenProperty(item.Btn, "BackgroundColor3", targetBg)
 						themeManager:TweenProperty(item.Btn, "TextColor3", themeManager.Current.Text)
 					else
@@ -776,8 +790,13 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				if item.Btn and item.Btn.Parent then
 					local active = selectedMap[item.Opt] == true
 					local targetBg = active and themeManager.Current.KnobOn or themeManager.Current.ElementBg
-					themeManager:TweenProperty(item.Btn, "BackgroundColor3", targetBg)
-					themeManager:TweenProperty(item.Btn, "TextColor3", themeManager.Current.Text)
+					if themeManager.TweenProperty then
+						themeManager:TweenProperty(item.Btn, "BackgroundColor3", targetBg)
+						themeManager:TweenProperty(item.Btn, "TextColor3", themeManager.Current.Text)
+					else
+						item.Btn.BackgroundColor3 = targetBg
+						item.Btn.TextColor3 = themeManager.Current.Text
+					end
 				end
 			end
 		end
@@ -828,6 +847,17 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		end)
 
 		return {
+			Set = function(_, newArray)
+				selectedMap = {}
+				if type(newArray) == "table" then
+					for _, v in ipairs(newArray) do
+						selectedMap[v] = true
+					end
+				end
+				dropText.Text = formatHeaderText()
+				updateMultiColors()
+				callback(getSelectedArray(), selectedMap)
+			end,
 			Get = getSelectedArray,
 			GetMap = function() return selectedMap end
 		}
@@ -936,7 +966,13 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end)
 		end)
 
-		UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		local keybindConn
+		keybindConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+			if not bindBtn or not bindBtn.Parent then
+				keybindConn:Disconnect()
+				return
+			end
+
 			if listening then
 				if input.UserInputType == Enum.UserInputType.Keyboard then
 					listening = false
@@ -957,6 +993,12 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		end)
 
 		return {
+			Set = function(_, newKey)
+				if typeof(newKey) == "EnumItem" then
+					currentKey = newKey
+					bindBtn.Text = currentKey.Name
+				end
+			end,
 			Get = function() return currentKey end
 		}
 	end
@@ -1015,7 +1057,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		}
 	end
 
-	-- 9. ThemePicker (с плавной подсветкой активного кружка темы)
+	-- 9. ThemePicker
 	function api:AddThemePicker(labelTextStr, tipText)
 		local row = Utils.Create("Frame", {
 			Name = "ThemePickerRow",

@@ -1,3 +1,10 @@
+-- Если старая копия окна уже открыта — чисто выгружаем её перед перезапуском
+if _G.PrismUI and _G.PrismUI.ActiveWindow then
+	pcall(function()
+		_G.PrismUI.ActiveWindow:Unload()
+	end)
+end
+
 _G.PrismUI = _G.PrismUI or {}
 
 local LOCAL_DIR = "/workspaces/PrismUI/"
@@ -67,6 +74,8 @@ for _, fileName in ipairs(modules) do
 	end
 end
 
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 local Utils = _G.PrismUI.Utils
 local LibraryUI = _G.PrismUI.UI
 local Configs = _G.PrismUI.Configs
@@ -79,8 +88,9 @@ local Window = _G.PrismUI:CreateWindow({
 	Title = "PrismUI (v1.0)",
 	Theme = "Light"
 })
+_G.PrismUI.ActiveWindow = Window
 
--- Регистрируем тему и шрифт в конфиги
+-- Регистрация темы и шрифта в конфиги
 Configs:Register("UI_Theme", {
 	Get = function()
 		return Window.Theme.Current.Name
@@ -89,8 +99,6 @@ Configs:Register("UI_Theme", {
 		Window.Theme:SetTheme(themeName)
 	end
 })
-
-local fontDrop = nil
 
 -- 1. Главная страница
 local homeTab = Window:AddTab({
@@ -102,7 +110,7 @@ local homeTab = Window:AddTab({
 
 homeTab.Left:AddThemePicker("Тема", "Переключает цветовую схему интерфейса")
 
-fontDrop = homeTab.Left:AddDropdown({
+local fontDrop = homeTab.Left:AddDropdown({
 	Name = "Шрифт",
 	Options = Utils.FontList,
 	Default = Utils.CurrentFontName,
@@ -122,9 +130,18 @@ homeTab.Left:AddKeybind({
 	end
 })
 
+homeTab.Left:AddButton({
+	Name = "Выгрузка",
+	ButtonText = "Unload UI",
+	Tip = "Полностью закрывает интерфейс и отключает все циклы",
+	Callback = function()
+		Window:Unload()
+	end
+})
+
 homeTab.Left:AddText("Выбери игру на панели слева, чтобы открыть скрипт под нужный плейс.")
 
--- Управление конфигами в правой колонке главной страницы
+-- Управление конфигами в правой колонке
 local selectedConfigName = "default"
 local cfgListDrop = nil
 
@@ -173,7 +190,6 @@ homeTab.Right:AddButton({
 	end
 })
 
--- Автозагрузка default-конфига при старте, если он уже существует
 Configs:Load("default")
 
 -- 2. Вкладка игры
@@ -241,7 +257,7 @@ local function openStealAnEgg()
 		OffText = "Выкл.",
 		Tip = "Скорость передвижения персонажа",
 		Callback = function(speed)
-			local char = game.Players.LocalPlayer.Character
+			local char = Players.LocalPlayer.Character
 			if char and char:FindFirstChild("Humanoid") then
 				char.Humanoid.WalkSpeed = speed or 16
 			end
@@ -256,7 +272,7 @@ local function openStealAnEgg()
 		OffText = "Выкл.",
 		Tip = "Сила прыжка персонажа",
 		Callback = function(jp)
-			local char = game.Players.LocalPlayer.Character
+			local char = Players.LocalPlayer.Character
 			if char and char:FindFirstChild("Humanoid") then
 				char.Humanoid.UseJumpPower = true
 				char.Humanoid.JumpPower = jp or 50
@@ -265,19 +281,41 @@ local function openStealAnEgg()
 	})
 	Configs:Register("SAE_JumpPower", jumpSlider)
 
+	local noclipEnabled = false
 	local noclipToggle = tab.Right:AddToggle({
 		Name = "NoClip",
 		Default = false,
 		Tip = "Позволяет проходить сквозь стены и двери",
 		Callback = function(state)
-			print("NoClip:", state)
+			noclipEnabled = state
 		end
 	})
 	Configs:Register("SAE_NoClip", noclipToggle)
 
-	-- Подтягиваем значения из выбранного конфига для только что открытой вкладки
-	Configs:Load(selectedConfigName)
+	-- Регистрируем цикл NoClip и сброс характеристик в Window:AddCleanup
+	local noclipConn = RunService.Stepped:Connect(function()
+		if not noclipEnabled then return end
+		local char = Players.LocalPlayer.Character
+		if char then
+			for _, part in ipairs(char:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+				end
+			end
+		end
+	end)
+	Window:AddCleanup(noclipConn)
 
+	Window:AddCleanup(function()
+		noclipEnabled = false
+		local char = Players.LocalPlayer.Character
+		if char and char:FindFirstChild("Humanoid") then
+			char.Humanoid.WalkSpeed = 16
+			char.Humanoid.JumpPower = 50
+		end
+	end)
+
+	Configs:Load(selectedConfigName)
 	Window:SelectTab(tab)
 end
 

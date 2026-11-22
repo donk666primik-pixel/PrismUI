@@ -223,7 +223,9 @@ function UI.CreateWindow(options)
 		ActiveTab = nil,
 		DockSlotCount = 0,
 		IsVisible = true,
-		IsAnimating = true
+		IsAnimating = true,
+		Cleanups = {},
+		Unloaded = false
 	}
 
 	local rootScale = Utils.Create("UIScale", { Scale = 0 }, root)
@@ -231,6 +233,41 @@ function UI.CreateWindow(options)
 	openStartTween.Completed:Connect(function()
 		Window.IsAnimating = false
 	end)
+
+    -- Регистрация любого RBXScriptConnection (RenderStepped, Heartbeat, InputBegan) или функции очистки
+	function Window:AddCleanup(item)
+		table.insert(self.Cleanups, item)
+		return item
+	end
+
+	-- Полная выгрузка интерфейса и остановка всех циклов
+	function Window:Unload()
+		if self.Unloaded then return end
+		self.Unloaded = true
+		self.IsVisible = false
+
+		-- 1. Отключаем все зарегистрированные события и выполняем функции сброса
+		for _, item in ipairs(self.Cleanups) do
+			if typeof(item) == "RBXScriptConnection" then
+				item:Disconnect()
+			elseif type(item) == "function" then
+				pcall(item)
+			end
+		end
+		table.clear(self.Cleanups)
+
+		-- 2. Плавное закрытие окна перед удалением
+		dockUpdateTooltip.Visible = false
+		local closeTween = Utils.Tween(rootScale, 0.28, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+		closeTween.Completed:Connect(function()
+			if screenGui and screenGui.Parent then
+				screenGui:Destroy()
+			end
+		end)
+
+		-- 3. Очищаем глобальный объект
+		_G.PrismUI = nil
+    end
 
 	function Window:SelectTab(tabObj)
 		if self.ActiveTab == tabObj then return end
