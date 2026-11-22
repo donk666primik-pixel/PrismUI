@@ -1,4 +1,5 @@
 _G.PrismUI = _G.PrismUI or {}
+local TweenService = game:GetService("TweenService")
 local Themes = {}
 
 Themes.Presets = {
@@ -82,6 +83,8 @@ Themes.Presets = {
 
 Themes.Order = { "Dark", "Light", "LightPurple", "DarkPurple" }
 
+local THEME_TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
 function Themes.new(initialThemeName)
 	local self = {
 		Current = Themes.Presets[initialThemeName] or Themes.Presets.Light,
@@ -102,7 +105,7 @@ function Themes.new(initialThemeName)
 		table.insert(self.Listeners, fn)
 	end
 
-	function self:SetTheme(themeName)
+	function self:SetTheme(themeName, instant)
 		local target = Themes.Presets[themeName]
 		if not target then return end
 		self.Current = target
@@ -110,14 +113,23 @@ function Themes.new(initialThemeName)
 		for i = #self.Bindings, 1, -1 do
 			local b = self.Bindings[i]
 			if b.Instance and b.Instance.Parent then
-				b.Instance[b.Property] = target[b.Key]
+				local targetColor = target[b.Key]
+				if targetColor then
+					if instant then
+						b.Instance[b.Property] = targetColor
+					else
+						TweenService:Create(b.Instance, THEME_TWEEN_INFO, {
+							[b.Property] = targetColor
+						}):Play()
+					end
+				end
 			else
 				table.remove(self.Bindings, i)
 			end
 		end
 
 		for _, fn in ipairs(self.Listeners) do
-			task.spawn(fn, target)
+			task.spawn(fn, target, THEME_TWEEN_INFO)
 		end
 	end
 
