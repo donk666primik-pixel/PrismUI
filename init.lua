@@ -36,14 +36,15 @@ local function loadModuleSource(fileName)
 		end
 	end
 
-	return fetchUrl(BASE_URL .. fileName)
+	return fetchUrl(BASE_URL .. fileName .. "?t=" .. tostring(os.time()))
 end
 
 local modules = {
 	"utils.lua",
 	"themes.lua",
 	"elements.lua",
-	"ui.lua"
+	"ui.lua",
+	"configs.lua"
 }
 
 for _, fileName in ipairs(modules) do
@@ -68,6 +69,7 @@ end
 
 local Utils = _G.PrismUI.Utils
 local LibraryUI = _G.PrismUI.UI
+local Configs = _G.PrismUI.Configs
 
 function _G.PrismUI:CreateWindow(options)
 	return LibraryUI.CreateWindow(options)
@@ -78,17 +80,29 @@ local Window = _G.PrismUI:CreateWindow({
 	Theme = "Light"
 })
 
+-- Регистрируем тему и шрифт в конфиги
+Configs:Register("UI_Theme", {
+	Get = function()
+		return Window.Theme.Current.Name
+	end,
+	Set = function(_, themeName)
+		Window.Theme:SetTheme(themeName)
+	end
+})
+
+local fontDrop = nil
+
 -- 1. Главная страница
 local homeTab = Window:AddTab({
 	Name = "Главная страница",
 	Closable = false,
 	LeftTitle = "Главные настройки",
-	RightTitle = "Infinite Yield"
+	RightTitle = "Конфигурации"
 })
 
 homeTab.Left:AddThemePicker("Тема", "Переключает цветовую схему интерфейса")
 
-homeTab.Left:AddDropdown({
+fontDrop = homeTab.Left:AddDropdown({
 	Name = "Шрифт",
 	Options = Utils.FontList,
 	Default = Utils.CurrentFontName,
@@ -97,6 +111,7 @@ homeTab.Left:AddDropdown({
 		Utils.SetFont(selectedFont)
 	end
 })
+Configs:Register("UI_Font", fontDrop)
 
 homeTab.Left:AddKeybind({
 	Name = "Скрыть UI",
@@ -108,6 +123,58 @@ homeTab.Left:AddKeybind({
 })
 
 homeTab.Left:AddText("Выбери игру на панели слева, чтобы открыть скрипт под нужный плейс.")
+
+-- Управление конфигами в правой колонке главной страницы
+local selectedConfigName = "default"
+local cfgListDrop = nil
+
+local cfgNameBox = homeTab.Right:AddTextBox({
+	Name = "Название",
+	Default = "default",
+	Placeholder = "Имя конфига...",
+	Tip = "Введи имя для нового или существующего конфига",
+	Callback = function(txt)
+		local clean = string.gsub(txt or "", "[^%w_%-]", "")
+		if clean ~= "" then
+			selectedConfigName = clean
+		end
+	end
+})
+
+cfgListDrop = homeTab.Right:AddDropdown({
+	Name = "Список",
+	Options = Configs:GetList(),
+	Default = "default",
+	Tip = "Выбор сохранённого конфига из папки PrismUI/configs",
+	Callback = function(choice)
+		selectedConfigName = choice
+		cfgNameBox:Set(choice)
+	end
+})
+
+homeTab.Right:AddButton({
+	Name = "Запись",
+	ButtonText = "Сохранить конфиг",
+	Tip = "Сохраняет все текущие настройки в JSON-файл",
+	Callback = function()
+		local ok = Configs:Save(selectedConfigName)
+		if ok and cfgListDrop then
+			cfgListDrop:Refresh(Configs:GetList())
+		end
+	end
+})
+
+homeTab.Right:AddButton({
+	Name = "Чтение",
+	ButtonText = "Загрузить конфиг",
+	Tip = "Применяет настройки из выбранного конфига",
+	Callback = function()
+		Configs:Load(selectedConfigName)
+	end
+})
+
+-- Автозагрузка default-конфига при старте, если он уже существует
+Configs:Load("default")
 
 -- 2. Вкладка игры
 local stealEggTab = nil
@@ -126,7 +193,7 @@ local function openStealAnEgg()
 	})
 	stealEggTab = tab
 
-	tab.Left:AddToggle({
+	local autoStealToggle = tab.Left:AddToggle({
 		Name = "Auto Steal",
 		Default = false,
 		Tip = "Автоматически крадет ближайшие яйца в радиусе",
@@ -134,8 +201,9 @@ local function openStealAnEgg()
 			print("Auto Steal:", state)
 		end
 	})
+	Configs:Register("SAE_AutoSteal", autoStealToggle)
 
-	tab.Left:AddDropdown({
+	local rarityDrop = tab.Left:AddDropdown({
 		Name = "Редкость",
 		Options = { "Любая", "Редкие", "Мифические", "Секретные" },
 		Default = "Любая",
@@ -144,8 +212,9 @@ local function openStealAnEgg()
 			print("Редкость:", choice)
 		end
 	})
+	Configs:Register("SAE_Rarity", rarityDrop)
 
-	tab.Left:AddMultiDropdown({
+	local mutationsMulti = tab.Left:AddMultiDropdown({
 		Name = "Мутации",
 		Options = { "Золотой", "Алмазный", "Радужный", "Гигантский" },
 		Default = { "Золотой" },
@@ -154,6 +223,7 @@ local function openStealAnEgg()
 			print("Мутации:", table.concat(selectedList, ", "))
 		end
 	})
+	Configs:Register("SAE_Mutations", mutationsMulti)
 
 	tab.Left:AddButton({
 		Name = "База",
@@ -164,7 +234,7 @@ local function openStealAnEgg()
 		end
 	})
 
-	tab.Right:AddSlider({
+	local walkSlider = tab.Right:AddSlider({
 		Name = "Walkspeed",
 		Min = 16,
 		Max = 120,
@@ -177,8 +247,9 @@ local function openStealAnEgg()
 			end
 		end
 	})
+	Configs:Register("SAE_Walkspeed", walkSlider)
 
-	tab.Right:AddSlider({
+	local jumpSlider = tab.Right:AddSlider({
 		Name = "JumpPower",
 		Min = 50,
 		Max = 200,
@@ -192,8 +263,9 @@ local function openStealAnEgg()
 			end
 		end
 	})
+	Configs:Register("SAE_JumpPower", jumpSlider)
 
-	tab.Right:AddToggle({
+	local noclipToggle = tab.Right:AddToggle({
 		Name = "NoClip",
 		Default = false,
 		Tip = "Позволяет проходить сквозь стены и двери",
@@ -201,6 +273,10 @@ local function openStealAnEgg()
 			print("NoClip:", state)
 		end
 	})
+	Configs:Register("SAE_NoClip", noclipToggle)
+
+	-- Подтягиваем значения из выбранного конфига для только что открытой вкладки
+	Configs:Load(selectedConfigName)
 
 	Window:SelectTab(tab)
 end
