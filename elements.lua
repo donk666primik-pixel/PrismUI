@@ -10,7 +10,6 @@ local Utils = _G.PrismUI.Utils
 local Themes = _G.PrismUI.Themes
 local Elements = {}
 
--- Хелпер для запуска/остановки бесконечного "дыхания" (пульсации)
 local function startBreathing(targetInst, propName, fromVal, toVal)
 	local info = TweenInfo.new(0.75, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
 	targetInst[propName] = fromVal
@@ -178,8 +177,8 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			}, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		end
 
-		themeManager:OnChanged(function()
-			knob.BackgroundColor3 = state and themeManager.Current.KnobOn or themeManager.Current.KnobOff
+		themeManager:OnChanged(function(target)
+			themeManager:TweenProperty(knob, "BackgroundColor3", state and target.KnobOn or target.KnobOff)
 		end)
 
 		track.MouseButton1Click:Connect(function()
@@ -198,7 +197,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		}
 	end
 
-	-- 2. Slider (утолщение полоски + дыхание при удержании)
+	-- 2. Slider
 	function api:AddSlider(config)
 		config = config or {}
 		local minVal = config.Min or 16
@@ -262,7 +261,6 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 
 		local function setHoldVisual(isHolding)
 			if isHolding then
-				-- Плавное увеличение полоски и кружка при удержании
 				Utils.Tween(track, 0.16, { Size = UDim2.new(0, 104, 0, 24) }, Enum.EasingStyle.Back)
 				Utils.Tween(knob, 0.16, { Size = UDim2.new(0, 24, 0, 24) }, Enum.EasingStyle.Back)
 				if not breathTween then
@@ -397,7 +395,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		return actionBtn
 	end
 
-	-- 4. Dropdown (плавное раздвигание нижних функций + дыхание открытого списка)
+	-- 4. Dropdown
 	function api:AddDropdown(config)
 		config = config or {}
 		local options = config.Options or {}
@@ -405,8 +403,8 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		local callback = config.Callback or function() end
 		local isOpen = false
 		local breathTween = nil
+		local optionButtons = {}
 
-		-- Без AutomaticSize: анимируем Size.Y вручную, чтобы нижние элементы двигались плавно
 		local wrapper = Utils.Create("Frame", {
 			Name = "Dropdown_" .. (config.Name or "Drop"),
 			Size = UDim2.new(1, 0, 0, 26),
@@ -527,18 +525,34 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end
 		end
 
+		local function updateOptionColors(smooth)
+			for _, item in ipairs(optionButtons) do
+				if item.Btn and item.Btn.Parent then
+					local isSel = (item.Opt == selected)
+					local targetBg = isSel and themeManager.Current.KnobOn or themeManager.Current.ElementBg
+					if smooth then
+						themeManager:TweenProperty(item.Btn, "BackgroundColor3", targetBg)
+						themeManager:TweenProperty(item.Btn, "TextColor3", themeManager.Current.Text)
+					else
+						item.Btn.BackgroundColor3 = targetBg
+						item.Btn.TextColor3 = themeManager.Current.Text
+					end
+				end
+			end
+		end
+
 		local function rebuildOptions()
 			for _, child in ipairs(listBox:GetChildren()) do
 				if child:IsA("TextButton") then
 					child:Destroy()
 				end
 			end
+			optionButtons = {}
 
 			for _, opt in ipairs(options) do
-				local isSel = (opt == selected)
 				local optBtn = Utils.Create("TextButton", {
 					Size = UDim2.new(1, 0, 0, 20),
-					BackgroundColor3 = isSel and themeManager.Current.KnobOn or themeManager.Current.ElementBg,
+					BackgroundColor3 = (opt == selected) and themeManager.Current.KnobOn or themeManager.Current.ElementBg,
 					Font = Enum.Font.GothamMedium,
 					Text = tostring(opt),
 					TextSize = 11,
@@ -548,14 +562,16 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				}, listBox)
 				Utils.AddCorner(optBtn, 6)
 
+				table.insert(optionButtons, { Btn = optBtn, Opt = opt })
+
 				optBtn.MouseEnter:Connect(function()
-					if not isSel then
+					if opt ~= selected then
 						Utils.Tween(optBtn, 0.12, { BackgroundColor3 = themeManager.Current.TabBg })
 					end
 				end)
 
 				optBtn.MouseLeave:Connect(function()
-					if not isSel then
+					if opt ~= selected then
 						Utils.Tween(optBtn, 0.12, { BackgroundColor3 = themeManager.Current.ElementBg })
 					end
 				end)
@@ -563,7 +579,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				optBtn.MouseButton1Click:Connect(function()
 					selected = opt
 					dropText.Text = tostring(selected)
-					rebuildOptions()
+					updateOptionColors(true)
 					setDropdownOpen(false)
 					callback(selected)
 				end)
@@ -572,9 +588,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 
 		rebuildOptions()
 		themeManager:OnChanged(function()
-			if listBox and listBox.Parent then
-				rebuildOptions()
-			end
+			updateOptionColors(true)
 		end)
 
 		dropBtn.MouseButton1Click:Connect(function()
@@ -585,7 +599,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			Set = function(_, val)
 				selected = val
 				dropText.Text = tostring(selected)
-				rebuildOptions()
+				updateOptionColors(true)
 				callback(selected)
 			end,
 			Refresh = function(_, newOpts)
@@ -601,7 +615,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		}
 	end
 
-	-- 5. MultiDropdown (плавное раздвигание нижних функций + дыхание открытого списка)
+	-- 5. MultiDropdown
 	function api:AddMultiDropdown(config)
 		config = config or {}
 		local options = config.Options or {}
@@ -614,6 +628,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		local callback = config.Callback or function() end
 		local isOpen = false
 		local breathTween = nil
+		local optionButtons = {}
 
 		local wrapper = Utils.Create("Frame", {
 			Name = "MultiDropdown_" .. (config.Name or "Multi"),
@@ -756,12 +771,24 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end
 		end
 
+		local function updateMultiColors()
+			for _, item in ipairs(optionButtons) do
+				if item.Btn and item.Btn.Parent then
+					local active = selectedMap[item.Opt] == true
+					local targetBg = active and themeManager.Current.KnobOn or themeManager.Current.ElementBg
+					themeManager:TweenProperty(item.Btn, "BackgroundColor3", targetBg)
+					themeManager:TweenProperty(item.Btn, "TextColor3", themeManager.Current.Text)
+				end
+			end
+		end
+
 		local function rebuildMulti()
 			for _, child in ipairs(listBox:GetChildren()) do
 				if child:IsA("TextButton") then
 					child:Destroy()
 				end
 			end
+			optionButtons = {}
 
 			for _, opt in ipairs(options) do
 				local active = selectedMap[opt] == true
@@ -777,6 +804,8 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				}, listBox)
 				Utils.AddCorner(optBtn, 6)
 
+				table.insert(optionButtons, { Btn = optBtn, Opt = opt })
+
 				optBtn.MouseButton1Click:Connect(function()
 					selectedMap[opt] = not selectedMap[opt]
 					local nowActive = selectedMap[opt] == true
@@ -791,9 +820,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 
 		rebuildMulti()
 		themeManager:OnChanged(function()
-			if listBox and listBox.Parent then
-				rebuildMulti()
-			end
+			updateMultiColors()
 		end)
 
 		dropBtn.MouseButton1Click:Connect(function()
@@ -846,7 +873,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		}
 	end
 
-	-- 7. Keybind (циклическая анимация точек ".", "..", "..." + дыхание при ожидании клавиши)
+	-- 7. Keybind
 	function api:AddKeybind(config)
 		config = config or {}
 		local currentKey = config.Default or Enum.KeyCode.RightShift
@@ -988,7 +1015,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		}
 	end
 
-	-- 9. ThemePicker
+	-- 9. ThemePicker (с плавной подсветкой активного кружка темы)
 	function api:AddThemePicker(labelTextStr, tipText)
 		local row = Utils.Create("Frame", {
 			Name = "ThemePickerRow",
@@ -998,6 +1025,18 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		}, columnContainer)
 
 		createHeaderLabel(row, labelTextStr or "Тема", tipText, 64)
+
+		local swatchStrokes = {}
+
+		local function syncActiveSwatch(activeName)
+			for key, stroke in pairs(swatchStrokes) do
+				local isActive = (key == activeName)
+				Utils.Tween(stroke, 0.25, {
+					Transparency = isActive and 0 or 1,
+					Thickness = isActive and 2 or 1
+				})
+			end
+		end
 
 		for idx, themeKey in ipairs(Themes.Order) do
 			local preset = Themes.Presets[themeKey]
@@ -1032,6 +1071,17 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			}, swatchHolder)
 			Utils.AddCorner(btn, 8)
 
+			local activeStroke = Utils.Create("UIStroke", {
+				Color = preset.PreviewAccent or themeManager.Current.Accent,
+				Thickness = (themeManager.Current.Name == themeKey) and 2 or 1,
+				Transparency = (themeManager.Current.Name == themeKey) and 0 or 1,
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			}, btn)
+			if not preset.PreviewAccent then
+				themeManager:Bind(activeStroke, "Color", "Accent")
+			end
+			swatchStrokes[themeKey] = activeStroke
+
 			btn.MouseEnter:Connect(function()
 				Utils.Tween(swatchScale, 0.14, { Scale = 1.08 })
 			end)
@@ -1050,6 +1100,10 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				themeManager:SetTheme(themeKey)
 			end)
 		end
+
+		themeManager:OnChanged(function(target)
+			syncActiveSwatch(target.Name)
+		end)
 	end
 
 	return api

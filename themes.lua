@@ -82,15 +82,29 @@ Themes.Presets = {
 }
 
 Themes.Order = { "Dark", "Light", "LightPurple", "DarkPurple" }
-
-local THEME_TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+local TWEEN_INFO = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 function Themes.new(initialThemeName)
 	local self = {
 		Current = Themes.Presets[initialThemeName] or Themes.Presets.Light,
 		Bindings = {},
-		Listeners = {}
+		Listeners = {},
+		ActiveTweens = {}
 	}
+
+	function self:TweenProperty(instance, property, targetColor)
+		if not instance or not instance.Parent or not targetColor then return end
+		if not self.ActiveTweens[instance] then
+			self.ActiveTweens[instance] = {}
+		end
+		local prevTween = self.ActiveTweens[instance][property]
+		if prevTween then
+			prevTween:Cancel()
+		end
+		local tw = TweenService:Create(instance, TWEEN_INFO, { [property] = targetColor })
+		self.ActiveTweens[instance][property] = tw
+		tw:Play()
+	end
 
 	function self:Bind(instance, property, themeKey)
 		instance[property] = self.Current[themeKey]
@@ -105,31 +119,23 @@ function Themes.new(initialThemeName)
 		table.insert(self.Listeners, fn)
 	end
 
-	function self:SetTheme(themeName, instant)
+	function self:SetTheme(themeName)
 		local target = Themes.Presets[themeName]
-		if not target then return end
+		if not target or self.Current == target then return end
 		self.Current = target
 
 		for i = #self.Bindings, 1, -1 do
 			local b = self.Bindings[i]
 			if b.Instance and b.Instance.Parent then
-				local targetColor = target[b.Key]
-				if targetColor then
-					if instant then
-						b.Instance[b.Property] = targetColor
-					else
-						TweenService:Create(b.Instance, THEME_TWEEN_INFO, {
-							[b.Property] = targetColor
-						}):Play()
-					end
-				end
+				self:TweenProperty(b.Instance, b.Property, target[b.Key])
 			else
+				self.ActiveTweens[b.Instance] = nil
 				table.remove(self.Bindings, i)
 			end
 		end
 
 		for _, fn in ipairs(self.Listeners) do
-			task.spawn(fn, target, THEME_TWEEN_INFO)
+			task.spawn(fn, target, self)
 		end
 	end
 
