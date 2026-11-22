@@ -71,6 +71,17 @@ function UI.CreateWindow(options)
 	Utils.AddCorner(leftDock, 20)
 	themeManager:Bind(leftDock, "BackgroundColor3", "MainBg")
 
+	-- Блокер ПКМ для левого дока
+	Utils.Create("TextButton", {
+		Name = "DockInputSink",
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+		Modal = true,
+		ZIndex = 1
+	}, leftDock)
+
 	local dockScroll = Utils.Create("ScrollingFrame", {
 		Name = "DockScroll",
 		Size = UDim2.new(0, 56, 1, -24),
@@ -161,6 +172,17 @@ function UI.CreateWindow(options)
 	Utils.AddCorner(mainWindow, 22)
 	themeManager:Bind(mainWindow, "BackgroundColor3", "MainBg")
 
+	-- Блокер ПКМ на всю площадь главного окна (запрещает вращение камеры при клике по UI)
+	Utils.Create("TextButton", {
+		Name = "WindowInputSink",
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+		Modal = true,
+		ZIndex = 3
+	}, mainWindow)
+
 	local topBar = Utils.Create("Frame", {
 		Name = "TopBar",
 		Size = UDim2.new(1, 0, 0, 52),
@@ -240,19 +262,16 @@ function UI.CreateWindow(options)
 		Window.IsAnimating = false
 	end)
 
-	-- Регистрация любого RBXScriptConnection (RenderStepped, Heartbeat, InputBegan) или функции очистки
 	function Window:AddCleanup(item)
 		table.insert(self.Cleanups, item)
 		return item
 	end
 
-	-- Полная выгрузка интерфейса и остановка всех циклов
 	function Window:Unload()
 		if self.Unloaded then return end
 		self.Unloaded = true
 		self.IsVisible = false
 
-		-- 1. Отключаем все зарегистрированные события и выполняем функции сброса
 		for _, item in ipairs(self.Cleanups) do
 			if typeof(item) == "RBXScriptConnection" then
 				item:Disconnect()
@@ -262,7 +281,6 @@ function UI.CreateWindow(options)
 		end
 		table.clear(self.Cleanups)
 
-		-- 2. Плавное закрытие окна перед удалением
 		dockUpdateTooltip.Visible = false
 		local closeTween = Utils.Tween(rootScale, 0.28, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 		closeTween.Completed:Connect(function()
@@ -271,7 +289,6 @@ function UI.CreateWindow(options)
 			end
 		end)
 
-		-- 3. Очищаем глобальный объект
 		_G.PrismUI = nil
 	end
 

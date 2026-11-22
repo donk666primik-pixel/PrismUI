@@ -73,7 +73,6 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		return overlayRoot or columnContainer
 	end
 
-	-- Универсальный контроллер Neverlose ПКМ-бинда по координатам строки
 	local function attachRightClickBinder(rowHitbox, labelTextInst, bindConfig)
 		local bindState = nil
 		local isListening = false
@@ -133,22 +132,25 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			local popupParent = getPopupParent()
 			local popup = Utils.Create("Frame", {
 				Name = "NeverloseBindPopup",
-				Size = UDim2.new(0, 188, 0, 0),
+				Size = UDim2.new(0, 184, 0, 0),
 				AutomaticSize = Enum.AutomaticSize.Y,
-				BackgroundColor3 = themeManager.Current.MainBg,
+				BackgroundColor3 = themeManager.Current.TopBar,
 				Active = true,
 				ZIndex = 500
 			}, popupParent)
 			Utils.AddCorner(popup, 10)
-			themeManager:Bind(popup, "BackgroundColor3", "MainBg")
+			themeManager:Bind(popup, "BackgroundColor3", "TopBar")
 			activeContextPopup = popup
 
-			local stroke = Utils.Create("UIStroke", {
-				Color = themeManager.Current.Accent,
-				Thickness = 1.5,
-				ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			-- Перехват кликов внутри самого попапа, чтобы камера не крутилась
+			Utils.Create("TextButton", {
+				Size = UDim2.new(1, 0, 1, 0),
+				BackgroundTransparency = 1,
+				Text = "",
+				AutoButtonColor = false,
+				Modal = true,
+				ZIndex = 500
 			}, popup)
-			themeManager:Bind(stroke, "Color", "Accent")
 
 			Utils.Create("UIListLayout", {
 				Padding = UDim.new(0, 5),
@@ -156,24 +158,17 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			}, popup)
 
 			Utils.Create("UIPadding", {
-				PaddingTop = UDim.new(0, 7),
-				PaddingBottom = UDim.new(0, 7),
-				PaddingLeft = UDim.new(0, 8),
-				PaddingRight = UDim.new(0, 8)
+				PaddingTop = UDim.new(0, 8),
+				PaddingBottom = UDim.new(0, 8),
+				PaddingLeft = UDim.new(0, 9),
+				PaddingRight = UDim.new(0, 9)
 			}, popup)
 
 			popup.Position = UDim2.new(0, math.floor(mousePos.X + 8), 0, math.floor(mousePos.Y + 8))
 
-			-- Заголовок + кнопка очистки
-			local headRow = Utils.Create("Frame", {
-				Size = UDim2.new(1, 0, 0, 18),
-				BackgroundTransparency = 1,
-				LayoutOrder = 1,
-				ZIndex = 501
-			}, popup)
-
+			-- Заголовок без крестика
 			local headTitle = Utils.Create("TextLabel", {
-				Size = UDim2.new(1, -22, 1, 0),
+				Size = UDim2.new(1, 0, 0, 16),
 				BackgroundTransparency = 1,
 				Font = Enum.Font.GothamBold,
 				Text = "Бинд: " .. baseTitle,
@@ -181,24 +176,12 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				TextTruncate = Enum.TextTruncate.AtEnd,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextColor3 = themeManager.Current.Text,
+				LayoutOrder = 1,
 				ZIndex = 502
-			}, headRow)
+			}, popup)
 			themeManager:Bind(headTitle, "TextColor3", "Text")
 
-			local clearBtn = Utils.Create("TextButton", {
-				Size = UDim2.new(0, 18, 0, 18),
-				Position = UDim2.new(1, -18, 0, 0),
-				BackgroundColor3 = themeManager.Current.KnobOff,
-				Font = Enum.Font.GothamBold,
-				Text = "✕",
-				TextSize = 10,
-				TextColor3 = Color3.new(1, 1, 1),
-				AutoButtonColor = false,
-				ZIndex = 502
-			}, headRow)
-			Utils.AddCorner(clearBtn, 6)
-
-			-- Строка выбора клавиши
+			-- Строка выбора клавиши (Backspace/Delete сбрасывает бинд)
 			local keyRow = Utils.Create("Frame", {
 				Size = UDim2.new(1, 0, 0, 22),
 				BackgroundTransparency = 1,
@@ -207,7 +190,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			}, popup)
 
 			local keyLbl = Utils.Create("TextLabel", {
-				Size = UDim2.new(0, 64, 1, 0),
+				Size = UDim2.new(0, 62, 1, 0),
 				BackgroundTransparency = 1,
 				Font = Enum.Font.GothamMedium,
 				Text = "Клавиша:",
@@ -219,11 +202,11 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			themeManager:Bind(keyLbl, "TextColor3", "Text")
 
 			local keyBtn = Utils.Create("TextButton", {
-				Size = UDim2.new(1, -68, 1, 0),
-				Position = UDim2.new(0, 68, 0, 0),
+				Size = UDim2.new(1, -66, 1, 0),
+				Position = UDim2.new(0, 66, 0, 0),
 				BackgroundColor3 = themeManager.Current.ElementBg,
 				Font = Enum.Font.GothamBold,
-				Text = (bindState and bindState.Name ~= "") and formatInputShort(bindState.Name) or "Нажми...",
+				Text = (bindState and bindState.Name ~= "") and formatInputShort(bindState.Name) or "Нет",
 				TextSize = 11,
 				TextColor3 = themeManager.Current.Text,
 				AutoButtonColor = false,
@@ -249,7 +232,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				}, popup)
 
 				local modeLbl = Utils.Create("TextLabel", {
-					Size = UDim2.new(0, 64, 1, 0),
+					Size = UDim2.new(0, 62, 1, 0),
 					BackgroundTransparency = 1,
 					Font = Enum.Font.GothamMedium,
 					Text = "Режим:",
@@ -261,8 +244,8 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				themeManager:Bind(modeLbl, "TextColor3", "Text")
 
 				local modeBtn = Utils.Create("TextButton", {
-					Size = UDim2.new(1, -68, 1, 0),
-					Position = UDim2.new(0, 68, 0, 0),
+					Size = UDim2.new(1, -66, 1, 0),
+					Position = UDim2.new(0, 66, 0, 0),
 					BackgroundColor3 = themeManager.Current.ElementBg,
 					Font = Enum.Font.GothamBold,
 					Text = (bindState and bindState.Mode) or "Hold",
@@ -294,7 +277,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				}, popup)
 
 				local valLbl = Utils.Create("TextLabel", {
-					Size = UDim2.new(0, 64, 1, 0),
+					Size = UDim2.new(0, 62, 1, 0),
 					BackgroundTransparency = 1,
 					Font = Enum.Font.GothamMedium,
 					Text = "Значение:",
@@ -311,8 +294,8 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				end
 
 				local valBox = Utils.Create("TextBox", {
-					Size = UDim2.new(1, -68, 1, 0),
-					Position = UDim2.new(0, 68, 0, 0),
+					Size = UDim2.new(1, -66, 1, 0),
+					Position = UDim2.new(0, 66, 0, 0),
 					BackgroundColor3 = themeManager.Current.TrackBg,
 					Font = Enum.Font.GothamBold,
 					Text = tostring(initialTarget),
@@ -346,7 +329,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				}, popup)
 
 				local valLbl = Utils.Create("TextLabel", {
-					Size = UDim2.new(0, 64, 1, 0),
+					Size = UDim2.new(0, 62, 1, 0),
 					BackgroundTransparency = 1,
 					Font = Enum.Font.GothamMedium,
 					Text = "Пункт:",
@@ -364,8 +347,8 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				end
 
 				local optCycleBtn = Utils.Create("TextButton", {
-					Size = UDim2.new(1, -68, 1, 0),
-					Position = UDim2.new(0, 68, 0, 0),
+					Size = UDim2.new(1, -66, 1, 0),
+					Position = UDim2.new(0, 66, 0, 0),
 					BackgroundColor3 = themeManager.Current.ElementBg,
 					Font = Enum.Font.GothamBold,
 					Text = tostring(curOpt),
@@ -399,15 +382,6 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				end)
 			end
 
-			clearBtn.MouseButton1Click:Connect(function()
-				bindState = nil
-				isListening = false
-				isHoldActive = false
-				isToggleActive = false
-				refreshLabelBadge()
-				closeActivePopup()
-			end)
-
 			task.defer(function()
 				if not popup or not popup.Parent then return end
 				local listenConn
@@ -422,9 +396,18 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 						local capturedName = nil
 
 						if input.UserInputType == Enum.UserInputType.Keyboard then
-							if input.KeyCode == Enum.KeyCode.Escape then
+							if input.KeyCode == Enum.KeyCode.Backspace or input.KeyCode == Enum.KeyCode.Delete then
 								isListening = false
-								keyBtn.Text = (bindState and bindState.Name ~= "") and formatInputShort(bindState.Name) or "Нажми..."
+								bindState = nil
+								isHoldActive = false
+								isToggleActive = false
+								keyBtn.Text = "Нет"
+								Utils.Tween(keyBtn, 0.12, { BackgroundColor3 = themeManager.Current.ElementBg })
+								refreshLabelBadge()
+								return
+							elseif input.KeyCode == Enum.KeyCode.Escape then
+								isListening = false
+								keyBtn.Text = (bindState and bindState.Name ~= "") and formatInputShort(bindState.Name) or "Нет"
 								Utils.Tween(keyBtn, 0.12, { BackgroundColor3 = themeManager.Current.ElementBg })
 								return
 							end
@@ -459,7 +442,6 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end)
 		end
 
-		-- Глобальный слушатель: ловит ПКМ по строке + срабатывание биндов (Hold / Toggle)
 		local beganConn
 		beganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			if not rowHitbox or not rowHitbox.Parent then
@@ -467,7 +449,6 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				return
 			end
 
-			-- 1. Проверка клика ПКМ по строке элемента (если вкладка видна на экране)
 			if input.UserInputType == Enum.UserInputType.MouseButton2 then
 				if columnContainer.Parent and columnContainer.Parent.Parent and columnContainer.Parent.Parent.Visible then
 					if isMouseInsideGui(rowHitbox, input.Position) then
@@ -477,7 +458,6 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				end
 			end
 
-			-- 2. Срабатывание назначенного бинда
 			if gameProcessed or isListening or not bindState or bindState.Name == "" then return end
 
 			if matchesInput(input, bindState) then
