@@ -32,7 +32,7 @@ local SHORT_INPUT_NAMES = {
 	RightAlt = "RAlt"
 }
 
-local function formatInputShort(enumTypeStr, enumName)
+local function formatInputShort(enumName)
 	if not enumName or enumName == "" then return "" end
 	return SHORT_INPUT_NAMES[enumName] or enumName
 end
@@ -47,6 +47,14 @@ local function matchesInput(input, bindData)
 	return false
 end
 
+local function isMouseInsideGui(guiObj, mousePos)
+	if not guiObj or not guiObj.Visible then return false end
+	local pos = guiObj.AbsolutePosition
+	local size = guiObj.AbsoluteSize
+	return mousePos.X >= pos.X and mousePos.X <= (pos.X + size.X)
+		and mousePos.Y >= pos.Y and mousePos.Y <= (pos.Y + size.Y)
+end
+
 function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 	local api = {}
 	local activeContextPopup = nil
@@ -58,8 +66,15 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		activeContextPopup = nil
 	end
 
-	-- Универсальный контроллер Neverlose ПКМ-бинда с полным хитбоксом на всю строку
-	local function attachRightClickBinder(rowHitboxParent, extraTargets, labelTextInst, bindConfig)
+	local function getPopupParent()
+		if overlayRoot and overlayRoot.Parent and overlayRoot.Parent:IsA("ScreenGui") then
+			return overlayRoot.Parent
+		end
+		return overlayRoot or columnContainer
+	end
+
+	-- Универсальный контроллер Neverlose ПКМ-бинда по координатам строки
+	local function attachRightClickBinder(rowHitbox, labelTextInst, bindConfig)
 		local bindState = nil
 		local isListening = false
 		local isHoldActive = false
@@ -69,8 +84,8 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		local baseTitle = labelTextInst.Text
 
 		local function refreshLabelBadge()
-			if bindState and bindState.Name then
-				local shortName = formatInputShort(bindState.Type, bindState.Name)
+			if bindState and bindState.Name and bindState.Name ~= "" then
+				local shortName = formatInputShort(bindState.Name)
 				labelTextInst.Text = string.format("%s [%s]", baseTitle, shortName)
 			else
 				labelTextInst.Text = baseTitle
@@ -112,17 +127,18 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end
 		end
 
-		local function openContextMenu(anchorGui)
+		local function openContextMenu(mousePos)
 			closeActivePopup()
 
+			local popupParent = getPopupParent()
 			local popup = Utils.Create("Frame", {
 				Name = "NeverloseBindPopup",
-				Size = UDim2.new(0, 184, 0, 0),
+				Size = UDim2.new(0, 188, 0, 0),
 				AutomaticSize = Enum.AutomaticSize.Y,
 				BackgroundColor3 = themeManager.Current.MainBg,
 				Active = true,
-				ZIndex = 80
-			}, overlayRoot or columnContainer)
+				ZIndex = 500
+			}, popupParent)
 			Utils.AddCorner(popup, 10)
 			themeManager:Bind(popup, "BackgroundColor3", "MainBg")
 			activeContextPopup = popup
@@ -146,19 +162,14 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				PaddingRight = UDim.new(0, 8)
 			}, popup)
 
-			if overlayRoot then
-				local rel = anchorGui.AbsolutePosition - overlayRoot.AbsolutePosition
-				popup.Position = UDim2.new(0, math.clamp(rel.X + 10, 6, 670), 0, math.clamp(rel.Y + 28, 6, 380))
-			else
-				popup.Position = UDim2.new(0, 10, 0, 28)
-			end
+			popup.Position = UDim2.new(0, math.floor(mousePos.X + 8), 0, math.floor(mousePos.Y + 8))
 
 			-- Заголовок + кнопка очистки
 			local headRow = Utils.Create("Frame", {
 				Size = UDim2.new(1, 0, 0, 18),
 				BackgroundTransparency = 1,
 				LayoutOrder = 1,
-				ZIndex = 81
+				ZIndex = 501
 			}, popup)
 
 			local headTitle = Utils.Create("TextLabel", {
@@ -170,7 +181,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				TextTruncate = Enum.TextTruncate.AtEnd,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextColor3 = themeManager.Current.Text,
-				ZIndex = 82
+				ZIndex = 502
 			}, headRow)
 			themeManager:Bind(headTitle, "TextColor3", "Text")
 
@@ -183,7 +194,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				TextSize = 10,
 				TextColor3 = Color3.new(1, 1, 1),
 				AutoButtonColor = false,
-				ZIndex = 82
+				ZIndex = 502
 			}, headRow)
 			Utils.AddCorner(clearBtn, 6)
 
@@ -192,7 +203,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				Size = UDim2.new(1, 0, 0, 22),
 				BackgroundTransparency = 1,
 				LayoutOrder = 2,
-				ZIndex = 81
+				ZIndex = 501
 			}, popup)
 
 			local keyLbl = Utils.Create("TextLabel", {
@@ -203,7 +214,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				TextSize = 11,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextColor3 = themeManager.Current.Text,
-				ZIndex = 82
+				ZIndex = 502
 			}, keyRow)
 			themeManager:Bind(keyLbl, "TextColor3", "Text")
 
@@ -212,11 +223,11 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				Position = UDim2.new(0, 68, 0, 0),
 				BackgroundColor3 = themeManager.Current.ElementBg,
 				Font = Enum.Font.GothamBold,
-				Text = bindState and formatInputShort(bindState.Type, bindState.Name) or "Нажми...",
+				Text = (bindState and bindState.Name ~= "") and formatInputShort(bindState.Name) or "Нажми...",
 				TextSize = 11,
 				TextColor3 = themeManager.Current.Text,
 				AutoButtonColor = false,
-				ZIndex = 82
+				ZIndex = 502
 			}, keyRow)
 			Utils.AddCorner(keyBtn, 6)
 			themeManager:Bind(keyBtn, "BackgroundColor3", "ElementBg")
@@ -234,7 +245,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 					Size = UDim2.new(1, 0, 0, 22),
 					BackgroundTransparency = 1,
 					LayoutOrder = 3,
-					ZIndex = 81
+					ZIndex = 501
 				}, popup)
 
 				local modeLbl = Utils.Create("TextLabel", {
@@ -245,7 +256,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 					TextSize = 11,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					TextColor3 = themeManager.Current.Text,
-					ZIndex = 82
+					ZIndex = 502
 				}, modeRow)
 				themeManager:Bind(modeLbl, "TextColor3", "Text")
 
@@ -258,7 +269,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 					TextSize = 11,
 					TextColor3 = themeManager.Current.Text,
 					AutoButtonColor = false,
-					ZIndex = 82
+					ZIndex = 502
 				}, modeRow)
 				Utils.AddCorner(modeBtn, 6)
 				themeManager:Bind(modeBtn, "BackgroundColor3", "ElementBg")
@@ -279,7 +290,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 					Size = UDim2.new(1, 0, 0, 22),
 					BackgroundTransparency = 1,
 					LayoutOrder = 4,
-					ZIndex = 81
+					ZIndex = 501
 				}, popup)
 
 				local valLbl = Utils.Create("TextLabel", {
@@ -290,11 +301,11 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 					TextSize = 11,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					TextColor3 = themeManager.Current.Text,
-					ZIndex = 82
+					ZIndex = 502
 				}, valRow)
 				themeManager:Bind(valLbl, "TextColor3", "Text")
 
-				local initialTarget = (bindState and bindState.TargetValue) or bindConfig.DefaultTarget or bindConfig.Max or 50
+				local initialTarget = (bindState and bindState.TargetValue) or bindConfig.DefaultTarget or 50
 				if bindState and bindState.TargetValue == nil then
 					bindState.TargetValue = initialTarget
 				end
@@ -308,7 +319,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 					TextSize = 11,
 					TextColor3 = themeManager.Current.Text,
 					ClearTextOnFocus = false,
-					ZIndex = 82
+					ZIndex = 502
 				}, valRow)
 				Utils.AddCorner(valBox, 6)
 				themeManager:Bind(valBox, "BackgroundColor3", "TrackBg")
@@ -331,7 +342,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 					Size = UDim2.new(1, 0, 0, 22),
 					BackgroundTransparency = 1,
 					LayoutOrder = 4,
-					ZIndex = 81
+					ZIndex = 501
 				}, popup)
 
 				local valLbl = Utils.Create("TextLabel", {
@@ -342,7 +353,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 					TextSize = 11,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					TextColor3 = themeManager.Current.Text,
-					ZIndex = 82
+					ZIndex = 502
 				}, valRow)
 				themeManager:Bind(valLbl, "TextColor3", "Text")
 
@@ -362,7 +373,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 					TextTruncate = Enum.TextTruncate.AtEnd,
 					TextColor3 = themeManager.Current.Text,
 					AutoButtonColor = false,
-					ZIndex = 82
+					ZIndex = 502
 				}, valRow)
 				Utils.AddCorner(optCycleBtn, 6)
 				themeManager:Bind(optCycleBtn, "BackgroundColor3", "ElementBg")
@@ -397,7 +408,6 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				closeActivePopup()
 			end)
 
-			-- Подключаем глобальный слушатель через task.defer, чтобы текущий клик ПКМ не закрыл окно мгновенно
 			task.defer(function()
 				if not popup or not popup.Parent then return end
 				local listenConn
@@ -414,7 +424,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 						if input.UserInputType == Enum.UserInputType.Keyboard then
 							if input.KeyCode == Enum.KeyCode.Escape then
 								isListening = false
-								keyBtn.Text = (bindState and bindState.Name ~= "") and formatInputShort(bindState.Type, bindState.Name) or "Нажми..."
+								keyBtn.Text = (bindState and bindState.Name ~= "") and formatInputShort(bindState.Name) or "Нажми..."
 								Utils.Tween(keyBtn, 0.12, { BackgroundColor3 = themeManager.Current.ElementBg })
 								return
 							end
@@ -435,16 +445,12 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 								Mode = prevMode,
 								TargetValue = prevTarget
 							}
-							keyBtn.Text = formatInputShort(capturedType, capturedName)
+							keyBtn.Text = formatInputShort(capturedName)
 							Utils.Tween(keyBtn, 0.12, { BackgroundColor3 = themeManager.Current.ElementBg })
 							refreshLabelBadge()
 						end
 					elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
-						local mPos = input.Position
-						local pPos = popup.AbsolutePosition
-						local pSize = popup.AbsoluteSize
-						local inside = mPos.X >= pPos.X and mPos.X <= pPos.X + pSize.X and mPos.Y >= pPos.Y and mPos.Y <= pPos.Y + pSize.Y
-						if not inside then
+						if not isMouseInsideGui(popup, input.Position) then
 							listenConn:Disconnect()
 							closeActivePopup()
 						end
@@ -453,43 +459,25 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end)
 		end
 
-		-- Невидимый хитбокс на всю ширину строки для ПКМ
-		local fullRowHitbox = Utils.Create("TextButton", {
-			Name = "RMBHitbox",
-			Size = UDim2.new(1, 0, 1, 0),
-			BackgroundTransparency = 1,
-			Text = "",
-			AutoButtonColor = false,
-			ZIndex = 9
-		}, rowHitboxParent)
-
-		fullRowHitbox.MouseButton2Click:Connect(function()
-			openContextMenu(fullRowHitbox)
-		end)
-
-		-- Также вешаем ПКМ на сами интерактивные элементы поверх строки (слайдер, тоггл, кнопка, дропдаун)
-		for _, targetGui in ipairs(extraTargets) do
-			if targetGui:IsA("GuiButton") then
-				targetGui.MouseButton2Click:Connect(function()
-					openContextMenu(targetGui)
-				end)
-			else
-				targetGui.Active = true
-				targetGui.InputBegan:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton2 then
-						openContextMenu(targetGui)
-					end
-				end)
-			end
-		end
-
-		-- Срабатывание назначенного бинда (Hold / Toggle)
+		-- Глобальный слушатель: ловит ПКМ по строке + срабатывание биндов (Hold / Toggle)
 		local beganConn
 		beganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-			if not labelTextInst or not labelTextInst.Parent then
+			if not rowHitbox or not rowHitbox.Parent then
 				beganConn:Disconnect()
 				return
 			end
+
+			-- 1. Проверка клика ПКМ по строке элемента (если вкладка видна на экране)
+			if input.UserInputType == Enum.UserInputType.MouseButton2 then
+				if columnContainer.Parent and columnContainer.Parent.Parent and columnContainer.Parent.Parent.Visible then
+					if isMouseInsideGui(rowHitbox, input.Position) then
+						openContextMenu(input.Position)
+						return
+					end
+				end
+			end
+
+			-- 2. Срабатывание назначенного бинда
 			if gameProcessed or isListening or not bindState or bindState.Name == "" then return end
 
 			if matchesInput(input, bindState) then
@@ -513,7 +501,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 
 		local endedConn
 		endedConn = UserInputService.InputEnded:Connect(function(input)
-			if not labelTextInst or not labelTextInst.Parent then
+			if not rowHitbox or not rowHitbox.Parent then
 				endedConn:Disconnect()
 				return
 			end
@@ -668,7 +656,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			ZIndex = 9
 		}, columnContainer)
 
-		local labelBox, labelText = createHeaderLabel(row, config.Name or "Toggle", config.Tip, 84)
+		local _, labelText = createHeaderLabel(row, config.Name or "Toggle", config.Tip, 84)
 
 		local track = Utils.Create("TextButton", {
 			Size = UDim2.new(0, 40, 0, 20),
@@ -714,7 +702,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			setState(not state)
 		end)
 
-		local binder = attachRightClickBinder(row, { labelBox, track }, labelText, {
+		local binder = attachRightClickBinder(row, labelText, {
 			Kind = "Toggle",
 			Set = setState,
 			Get = function() return state end
@@ -744,7 +732,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			ZIndex = 9
 		}, columnContainer)
 
-		local labelBox, labelText = createHeaderLabel(row, config.Name or "Slider", config.Tip, 84)
+		local _, labelText = createHeaderLabel(row, config.Name or "Slider", config.Tip, 84)
 
 		local track = Utils.Create("TextButton", {
 			Size = UDim2.new(0, 100, 0, 20),
@@ -878,7 +866,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			end
 		end)
 
-		local binder = attachRightClickBinder(row, { labelBox, track }, labelText, {
+		local binder = attachRightClickBinder(row, labelText, {
 			Kind = "Slider",
 			Min = minVal,
 			Max = maxVal,
@@ -907,7 +895,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			ZIndex = 9
 		}, columnContainer)
 
-		local labelBox, labelText = createHeaderLabel(row, config.Name or "Action", config.Tip, 84)
+		local _, labelText = createHeaderLabel(row, config.Name or "Action", config.Tip, 84)
 
 		local actionBtn = Utils.Create("TextButton", {
 			Size = UDim2.new(0, 100, 0, 24),
@@ -948,7 +936,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 
 		actionBtn.MouseButton1Click:Connect(triggerButton)
 
-		local binder = attachRightClickBinder(row, { labelBox, actionBtn }, labelText, {
+		local binder = attachRightClickBinder(row, labelText, {
 			Kind = "Button",
 			Trigger = triggerButton
 		})
@@ -984,7 +972,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			ZIndex = 9
 		}, wrapper)
 
-		local labelBox, labelText = createHeaderLabel(topRow, config.Name or "Выбор", config.Tip, 84)
+		local _, labelText = createHeaderLabel(topRow, config.Name or "Выбор", config.Tip, 84)
 
 		local dropBtn = Utils.Create("TextButton", {
 			Size = UDim2.new(0, 125, 0, 24),
@@ -1164,7 +1152,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			setDropdownOpen(not isOpen)
 		end)
 
-		local binder = attachRightClickBinder(topRow, { labelBox, dropBtn }, labelText, {
+		local binder = attachRightClickBinder(topRow, labelText, {
 			Kind = "Dropdown",
 			GetOptions = function() return options end,
 			Set = setOption,
