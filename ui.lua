@@ -12,7 +12,7 @@ local UI = {}
 
 function UI.CreateWindow(options)
 	options = options or {}
-	local titleText = options.Title or "PrismUI v1.0"
+	local titleText = options.Title or "PrismUI Default Title"
 	local themeManager = Themes.new(options.Theme or "Light")
 
 	local player = Players.LocalPlayer

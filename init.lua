@@ -74,7 +74,7 @@ function _G.PrismUI:CreateWindow(options)
 end
 
 local Window = _G.PrismUI:CreateWindow({
-	Title = "AllTheFeatures (ATF)",
+	Title = "PrismUI (v1.0)",
 	Theme = "Light"
 })
 
@@ -206,7 +206,7 @@ local function openStealAnEgg()
 end
 
 Window:AddGameIcon({
-	Image = "rbxassetid://0",
+	Image = "rbxassetid://114533623813414",
 	LastUpdate = "22.11.2026",
 	Callback = openStealAnEgg
 })
