@@ -25,6 +25,34 @@ local function cleanConfigName(rawName)
 	return string.gsub(stripped, "[^%w_%-]", "")
 end
 
+local function findConfigFilePath(cleanName)
+	if cleanName == "" then return nil end
+	ensureFolders()
+
+	if type(listfiles) == "function" then
+		local ok, files = pcall(listfiles, FOLDER_CONFIGS)
+		if ok and type(files) == "table" then
+			for _, filePath in ipairs(files) do
+				local normalized = string.gsub(tostring(filePath), "\\", "/")
+				local fileName = string.match(normalized, "([^/]+)%.json$")
+				if fileName == cleanName then
+					return tostring(filePath)
+				end
+			end
+		end
+	end
+
+	local fallback = FOLDER_CONFIGS .. "/" .. cleanName .. ".json"
+	if type(isfile) == "function" then
+		local ok, exists = pcall(isfile, fallback)
+		if ok and exists then
+			return fallback
+		end
+	end
+
+	return nil
+end
+
 local function valuesEqual(a, b)
 	if a == nil and b == nil then
 		return true
@@ -61,40 +89,67 @@ function Configs:Register(flagName, elementObj, sectionName, defaultVal)
 	}
 end
 
-function Configs:SetAutoload(configName)
-	if type(writefile) ~= "function" then return false end
-	ensureFolders()
-	local name = cleanConfigName(configName)
-	if name == "" then
-		if type(delfile) == "function" then
-			pcall(delfile, AUTOLOAD_FILE)
-		else
-			pcall(writefile, AUTOLOAD_FILE, "")
-		end
-		return true
+function Configs:GetList()
+	if type(listfiles) ~= "function" then
+		return {}
 	end
-	pcall(writefile, AUTOLOAD_FILE, name)
-	return true
-end
-
-function Configs:GetAutoload()
-	if type(isfile) == "function" and type(readfile) == "function" then
-		local ok, exists = pcall(isfile, AUTOLOAD_FILE)
-		if ok and exists then
-			local rOk, content = pcall(readfile, AUTOLOAD_FILE)
-			if rOk and type(content) == "string" and content ~= "" then
-				local name = cleanConfigName(content)
-				if name ~= "" then
-					-- Проверяем наличие через GetList(), так как listfiles в экзекуторах надёжнее isfile
-					local list = self:GetList()
-					if table.find(list, name) then
-						return name
+	ensureFolders()
+	local names = {}
+	local seen = {}
+	local ok, files = pcall(listfiles, FOLDER_CONFIGS)
+	if ok and type(files) == "table" then
+		for _, filePath in ipairs(files) do
+			local normalized = string.gsub(tostring(filePath), "\\", "/")
+			local name = string.match(normalized, "([^/]+)%.json$")
+			if name and name ~= "" and not seen[name] then
+				local valid = true
+				if type(readfile) == "function" then
+					local rOk, content = pcall(readfile, filePath)
+					if rOk and (content == "" or content == nil) then
+						valid = false
 					end
+				end
+				if valid then
+					seen[name] = true
+					table.insert(names, name)
 				end
 			end
 		end
 	end
+	table.sort(names)
+	return names
+end
+
+function Configs:GetAutoload()
+	if type(readfile) == "function" then
+		local rOk, content = pcall(readfile, AUTOLOAD_FILE)
+		if rOk and type(content) == "string" and content ~= "" then
+			local name = cleanConfigName(content)
+			if name ~= "" and table.find(self:GetList(), name) then
+				return name
+			end
+		end
+	end
 	return ""
+end
+
+function Configs:SetAutoload(configName)
+	if type(writefile) ~= "function" then return false end
+	ensureFolders()
+	local name = cleanConfigName(configName)
+	local currentAuto = self:GetAutoload()
+
+	-- Повторное нажатие по уже активному Autoload конфигу очищает автозагрузку
+	if name == "" or name == currentAuto then
+		pcall(writefile, AUTOLOAD_FILE, "")
+		if type(delfile) == "function" then
+			pcall(delfile, AUTOLOAD_FILE)
+		end
+		return true
+	end
+
+	pcall(writefile, AUTOLOAD_FILE, name)
+	return true
 end
 
 function Configs:Save(configName)
@@ -142,21 +197,20 @@ function Configs:Save(configName)
 end
 
 function Configs:Load(configName)
-	if type(isfile) ~= "function" or type(readfile) ~= "function" then
+	if type(readfile) ~= "function" then
 		return false
 	end
 
 	local name = cleanConfigName(configName)
-	if name == "" then return false end
-
-	local path = FOLDER_CONFIGS .. "/" .. name .. ".json"
-	local okExists, exists = pcall(isfile, path)
-	if not okExists or not exists then
+	local path = findConfigFilePath(name)
+	if not path then
 		return false
 	end
 
 	local okRead, raw = pcall(readfile, path)
-	if not okRead or raw == "" then return false end
+	if not okRead or type(raw) ~= "string" or raw == "" then
+		return false
+	end
 
 	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
 	if not ok or type(decoded) ~= "table" then
@@ -196,42 +250,23 @@ function Configs:Delete(configName)
 	if name == "" then return false end
 
 	ensureFolders()
-	local targetPath = FOLDER_CONFIGS .. "/" .. name .. ".json"
-	local foundExactPath = nil
-
-	-- Ищем точный путь файла так, как его видит сам экзекутор в listfiles
-	if type(listfiles) == "function" then
-		local ok, files = pcall(listfiles, FOLDER_CONFIGS)
-		if ok and type(files) == "table" then
-			for _, filePath in ipairs(files) do
-				local normalized = string.gsub(tostring(filePath), "\\", "/")
-				local fileName = string.match(normalized, "([^/]+)%.json$")
-				if fileName == name then
-					foundExactPath = tostring(filePath)
-					break
-				end
-			end
-		end
-	end
-
+	local exactPath = findConfigFilePath(name)
 	local pathsToTry = {}
-	if foundExactPath then
-		table.insert(pathsToTry, foundExactPath)
+	if exactPath then
+		table.insert(pathsToTry, exactPath)
 	end
-	table.insert(pathsToTry, targetPath)
+	table.insert(pathsToTry, FOLDER_CONFIGS .. "/" .. name .. ".json")
 	table.insert(pathsToTry, FOLDER_CONFIGS .. "\\" .. name .. ".json")
 
 	local deleted = false
 	if type(delfile) == "function" then
 		for _, p in ipairs(pathsToTry) do
-			local ok = pcall(delfile, p)
-			if ok then
+			if pcall(delfile, p) then
 				deleted = true
 			end
 		end
 	end
 
-	-- Если экзекутор не поддерживает delfile или файл заблокирован — обнуляем его содержимое
 	if not deleted and type(writefile) == "function" then
 		for _, p in ipairs(pathsToTry) do
 			if pcall(writefile, p, "") then
@@ -248,55 +283,23 @@ function Configs:Delete(configName)
 	return deleted
 end
 
-function Configs:GetList()
-	if type(listfiles) ~= "function" then
-		return {}
-	end
-	ensureFolders()
-	local names = {}
-	local seen = {}
-	local ok, files = pcall(listfiles, FOLDER_CONFIGS)
-	if ok and type(files) == "table" then
-		for _, filePath in ipairs(files) do
-			local normalized = string.gsub(tostring(filePath), "\\", "/")
-			local name = string.match(normalized, "([^/]+)%.json$")
-			if name and name ~= "" and not seen[name] then
-				local valid = true
-				if type(readfile) == "function" then
-					local rOk, content = pcall(readfile, filePath)
-					if rOk and (content == "" or content == nil) then
-						valid = false
-					end
-				end
-				if valid then
-					seen[name] = true
-					table.insert(names, name)
-				end
-			end
-		end
-	end
-	table.sort(names)
-	return names
-end
-
 function Configs:GetChangesSummary(compareConfigName)
 	local name = cleanConfigName(compareConfigName)
 	if name == "" then
-		return { "Конфиг не выбран" }
+		return { "Выберите конфиг из списка слева" }
 	end
 
-	if type(isfile) ~= "function" or type(readfile) ~= "function" then
+	if type(readfile) ~= "function" then
 		return { "Нет доступа к файлам конфигов" }
 	end
 
-	local path = FOLDER_CONFIGS .. "/" .. name .. ".json"
-	local okEx, exists = pcall(isfile, path)
-	if not okEx or not exists then
+	local path = findConfigFilePath(name)
+	if not path then
 		return { string.format("Конфиг «%s» ещё не сохранён", name) }
 	end
 
 	local okRead, raw = pcall(readfile, path)
-	if not okRead or raw == "" then
+	if not okRead or type(raw) ~= "string" or raw == "" then
 		return { string.format("Конфиг «%s» не найден", name) }
 	end
 
