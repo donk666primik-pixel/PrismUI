@@ -259,4 +259,96 @@ Themes.Presets = {
 		PreviewAccent = Color3.fromRGB(142, 96, 226),
 		MainBg = Color3.fromRGB(210, 202, 228),
 		TopBar = Color3.fromRGB(180, 170, 202),
-		TabBg = Color3.
+		TabBg = Color3.fromRGB(200, 192, 220),
+		ColumnBg = Color3.fromRGB(182, 172, 204),
+		ElementBg = Color3.fromRGB(212, 204, 230),
+		TrackBg = Color3.fromRGB(160, 150, 184),
+		KnobOff = Color3.fromRGB(178, 102, 114),
+		KnobOn = Color3.fromRGB(142, 96, 226),
+		SliderKnob = Color3.fromRGB(162, 118, 240),
+		Text = Color3.fromRGB(255, 255, 255),
+		Accent = Color3.fromRGB(142, 96, 226),
+		ScrollTrack = Color3.fromRGB(166, 156, 188),
+		ScrollThumb = Color3.fromRGB(154, 110, 234),
+		DockSlot = Color3.fromRGB(246, 242, 255)
+	}
+}
+
+Themes.Order = {
+	"Dark",
+	"DarkPurple",
+	"Neverlose",
+	"Fatality",
+	"Skeet",
+	"Dracula",
+	"Crimson",
+	"Light",
+	"LightPurple",
+	"LightBlue",
+	"LightMint",
+	"LightSakura",
+	"LightPeach",
+	"LightLavender"
+}
+
+local TWEEN_INFO = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+function Themes.new(initialThemeName)
+	local self = {
+		Current = Themes.Presets[initialThemeName] or Themes.Presets.Light,
+		Bindings = {},
+		Listeners = {},
+		ActiveTweens = {}
+	}
+
+	function self:TweenProperty(instance, property, targetColor)
+		if not instance or not instance.Parent or not targetColor then return end
+		if not self.ActiveTweens[instance] then
+			self.ActiveTweens[instance] = {}
+		end
+		local prevTween = self.ActiveTweens[instance][property]
+		if prevTween then
+			prevTween:Cancel()
+		end
+		local tw = TweenService:Create(instance, TWEEN_INFO, { [property] = targetColor })
+		self.ActiveTweens[instance][property] = tw
+		tw:Play()
+	end
+
+	function self:Bind(instance, property, themeKey)
+		instance[property] = self.Current[themeKey]
+		table.insert(self.Bindings, {
+			Instance = instance,
+			Property = property,
+			Key = themeKey
+		})
+	end
+
+	function self:OnChanged(fn)
+		table.insert(self.Listeners, fn)
+	end
+
+	function self:SetTheme(themeName)
+		local target = Themes.Presets[themeName]
+		if not target or self.Current == target then return end
+		self.Current = target
+
+		for i = #self.Bindings, 1, -1 do
+			local b = self.Bindings[i]
+			if b.Instance and b.Instance.Parent then
+				self:TweenProperty(b.Instance, b.Property, target[b.Key])
+			else
+				self.ActiveTweens[b.Instance] = nil
+				table.remove(self.Bindings, i)
+			end
+		end
+
+		for _, fn in ipairs(self.Listeners) do
+			task.spawn(fn, target, self)
+		end
+	end
+
+	return self
+end
+
+_G.PrismUI.Themes = Themes
