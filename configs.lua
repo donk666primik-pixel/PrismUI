@@ -85,10 +85,9 @@ function Configs:GetAutoload()
 			if rOk and type(content) == "string" and content ~= "" then
 				local name = cleanConfigName(content)
 				if name ~= "" then
-					-- Возвращаем имя автозагрузки только если сам JSON-файл конфига существует
-					local cfgPath = FOLDER_CONFIGS .. "/" .. name .. ".json"
-					local cfgOk, cfgExists = pcall(isfile, cfgPath)
-					if cfgOk and cfgExists then
+					-- Проверяем наличие через GetList(), так как listfiles в экзекуторах надёжнее isfile
+					local list = self:GetList()
+					if table.find(list, name) then
 						return name
 					end
 				end
@@ -283,7 +282,7 @@ end
 function Configs:GetChangesSummary(compareConfigName)
 	local name = cleanConfigName(compareConfigName)
 	if name == "" then
-		return { "Выберите конфиг из списка слева" }
+		return { "Конфиг не выбран" }
 	end
 
 	if type(isfile) ~= "function" or type(readfile) ~= "function" then
