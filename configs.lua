@@ -66,8 +66,10 @@ function Configs:SetAutoload(configName)
 	ensureFolders()
 	local name = cleanConfigName(configName)
 	if name == "" then
-		if type(isfile) == "function" and type(delfile) == "function" and isfile(AUTOLOAD_FILE) then
+		if type(delfile) == "function" then
 			pcall(delfile, AUTOLOAD_FILE)
+		else
+			pcall(writefile, AUTOLOAD_FILE, "")
 		end
 		return true
 	end
@@ -147,7 +149,7 @@ function Configs:Load(configName)
 	end
 
 	local okRead, raw = pcall(readfile, path)
-	if not okRead then return false end
+	if not okRead or raw == "" then return false end
 
 	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
 	if not ok or type(decoded) ~= "table" then
@@ -186,25 +188,57 @@ function Configs:Delete(configName)
 	local name = cleanConfigName(configName)
 	if name == "" then return false end
 
-	local path = FOLDER_CONFIGS .. "/" .. name .. ".json"
-	local removed = false
+	ensureFolders()
+	local targetPath = FOLDER_CONFIGS .. "/" .. name .. ".json"
+	local foundExactPath = nil
 
-	if type(delfile) == "function" then
-		local ok = pcall(delfile, path)
-		if ok then
-			removed = true
+	-- Ищем точный путь файла так, как его видит сам экзекутор в listfiles
+	if type(listfiles) == "function" then
+		local ok, files = pcall(listfiles, FOLDER_CONFIGS)
+		if ok and type(files) == "table" then
+			for _, filePath in ipairs(files) do
+				local normalized = string.gsub(tostring(filePath), "\\", "/")
+				local fileName = string.match(normalized, "([^/]+)%.json$")
+				if fileName == name then
+					foundExactPath = tostring(filePath)
+					break
+				end
+			end
 		end
-	elseif type(writefile) == "function" then
-		-- Фоллбэк для экзекуторов без delfile
-		pcall(writefile, path, "")
-		removed = true
 	end
 
-	if removed and self:GetAutoload() == name then
+	local pathsToTry = {}
+	if foundExactPath then
+		table.insert(pathsToTry, foundExactPath)
+	end
+	table.insert(pathsToTry, targetPath)
+	table.insert(pathsToTry, FOLDER_CONFIGS .. "\\" .. name .. ".json")
+
+	local deleted = false
+	if type(delfile) == "function" then
+		for _, p in ipairs(pathsToTry) do
+			local ok = pcall(delfile, p)
+			if ok then
+				deleted = true
+			end
+		end
+	end
+
+	-- Если экзекутор не поддерживает delfile или файл заблокирован — обнуляем его содержимое
+	if not deleted and type(writefile) == "function" then
+		for _, p in ipairs(pathsToTry) do
+			if pcall(writefile, p, "") then
+				deleted = true
+				break
+			end
+		end
+	end
+
+	if self:GetAutoload() == name then
 		self:SetAutoload("")
 	end
 
-	return removed
+	return deleted
 end
 
 function Configs:GetList()
@@ -213,21 +247,22 @@ function Configs:GetList()
 	end
 	ensureFolders()
 	local names = {}
+	local seen = {}
 	local ok, files = pcall(listfiles, FOLDER_CONFIGS)
 	if ok and type(files) == "table" then
 		for _, filePath in ipairs(files) do
 			local normalized = string.gsub(tostring(filePath), "\\", "/")
 			local name = string.match(normalized, "([^/]+)%.json$")
-			if name and name ~= "" then
-				-- Проверяем, что файл не пустой (на случай фоллбэк-удаления)
+			if name and name ~= "" and not seen[name] then
 				local valid = true
 				if type(readfile) == "function" then
 					local rOk, content = pcall(readfile, filePath)
-					if rOk and content == "" then
+					if rOk and (content == "" or content == nil) then
 						valid = false
 					end
 				end
 				if valid then
+					seen[name] = true
 					table.insert(names, name)
 				end
 			end
