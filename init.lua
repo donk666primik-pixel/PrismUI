@@ -50,8 +50,7 @@ local modules = {
 	"utils.lua",
 	"themes.lua",
 	"elements.lua",
-	"ui.lua",
-	"configs.lua"
+	"ui.lua"
 }
 
 for _, fileName in ipairs(modules) do
@@ -72,6 +71,17 @@ for _, fileName in ipairs(modules) do
 		warn("[PrismUI] Ошибка выполнения " .. fileName .. ": " .. tostring(runErr))
 		return
 	end
+end
+
+-- Отдельная безопасная подгрузка configs.lua (не ломает интерфейс при отсутствии файла)
+local cfgSource = loadModuleSource("configs.lua")
+if cfgSource then
+	local cfgFn = loadstring(cfgSource, "@configs.lua")
+	if cfgFn then
+		pcall(cfgFn)
+	end
+else
+	warn("[PrismUI] configs.lua не найден на GitHub — проверь git push")
 end
 
 local RunService = game:GetService("RunService")
