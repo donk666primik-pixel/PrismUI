@@ -601,7 +601,6 @@ function UI.CreateWindow(options)
 		})
 		self.ConfigsTab = tab
 
-		-- Скрываем стандартные скролл-контейнеры и делаем большие внутренние карточки как на макете
 		local oldLeftScroll = tab.LeftColumnFrame:FindFirstChild("ElementsScroll")
 		if oldLeftScroll then oldLeftScroll.Visible = false end
 		local oldRightScroll = tab.RightColumnFrame:FindFirstChild("ElementsScroll")
@@ -627,9 +626,16 @@ function UI.CreateWindow(options)
 		Utils.AddCorner(rightInnerCard, 16)
 		themeManager:Bind(rightInnerCard, "BackgroundColor3", "MainBg")
 
-		local selectedCfg = Configs and Configs:GetAutoload() or "default"
+		local initialList = Configs and Configs:GetList() or {}
+		local autoloadCfg = Configs and Configs:GetAutoload() or ""
+		local selectedCfg = ""
+		if autoloadCfg ~= "" and table.find(initialList, autoloadCfg) then
+			selectedCfg = autoloadCfg
+		elseif #initialList > 0 then
+			selectedCfg = initialList[1]
+		end
 
-		-- Верхнее поле ввода имени конфига в левой карточке
+		-- Поле ввода имени конфига (пустое, если конфигов ещё нет)
 		local nameInput = Utils.Create("TextBox", {
 			Size = UDim2.new(1, -20, 0, 28),
 			Position = UDim2.new(0, 10, 0, 10),
@@ -647,21 +653,46 @@ function UI.CreateWindow(options)
 		themeManager:Bind(nameInput, "BackgroundColor3", "ColumnBg")
 		themeManager:Bind(nameInput, "TextColor3", "Text")
 
-		-- Список доступных конфигов
-		local cfgListScroll = Utils.Create("ScrollingFrame", {
+		-- Контейнер области списка конфигов
+		local listArea = Utils.Create("Frame", {
 			Size = UDim2.new(1, -20, 1, -118),
 			Position = UDim2.new(0, 10, 0, 46),
+			BackgroundTransparency = 1,
+			ZIndex = 10
+		}, leftInnerCard)
+
+		local cfgListScroll = Utils.Create("ScrollingFrame", {
+			Size = UDim2.new(1, 0, 1, 0),
 			BackgroundTransparency = 1,
 			ScrollBarThickness = 2,
 			CanvasSize = UDim2.new(0, 0, 0, 0),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			ZIndex = 10
-		}, leftInnerCard)
+		}, listArea)
 
 		Utils.Create("UIListLayout", {
 			Padding = UDim.new(0, 6),
 			SortOrder = Enum.SortOrder.LayoutOrder
 		}, cfgListScroll)
+
+		-- Текст строго посередине списка, когда конфигов нет
+		local emptyHintLabel = Utils.Create("TextLabel", {
+			Size = UDim2.new(1, -20, 1, 0),
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			BackgroundTransparency = 1,
+			Font = Enum.Font.GothamMedium,
+			Text = "У вас ещё нету конфигов, самое время это исправить!",
+			TextSize = 12,
+			TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextYAlignment = Enum.TextYAlignment.Center,
+			TextColor3 = themeManager.Current.Text,
+			TextTransparency = 0.35,
+			Visible = false,
+			ZIndex = 11
+		}, listArea)
+		themeManager:Bind(emptyHintLabel, "TextColor3", "Text")
 
 		-- Сводка изменений в правой карточке
 		local changesLabel = Utils.Create("TextLabel", {
@@ -669,7 +700,7 @@ function UI.CreateWindow(options)
 			Position = UDim2.new(0, 12, 0, 12),
 			BackgroundTransparency = 1,
 			Font = Enum.Font.GothamMedium,
-			Text = "Загрузка...",
+			Text = "",
 			TextSize = 13,
 			TextWrapped = true,
 			TextXAlignment = Enum.TextXAlignment.Left,
@@ -693,10 +724,13 @@ function UI.CreateWindow(options)
 			end
 			if not Configs then return end
 
+			local list = Configs:GetList()
+			emptyHintLabel.Visible = (#list == 0)
+
 			local autoloadName = Configs:GetAutoload()
-			for _, cfgName in ipairs(Configs:GetList()) do
+			for _, cfgName in ipairs(list) do
 				local isSelected = (cfgName == selectedCfg)
-				local isAuto = (cfgName == autoloadName)
+				local isAuto = (cfgName == autoloadName and autoloadName ~= "")
 
 				local itemBtn = Utils.Create("TextButton", {
 					Size = UDim2.new(1, 0, 0, 28),
@@ -721,15 +755,12 @@ function UI.CreateWindow(options)
 
 		nameInput.FocusLost:Connect(function()
 			local clean = string.gsub(nameInput.Text or "", "[^%w_%-]", "")
-			if clean ~= "" then
-				selectedCfg = clean
-				nameInput.Text = clean
-				rebuildConfigList()
-				refreshChangesPanel()
-			end
+			selectedCfg = clean
+			nameInput.Text = clean
+			rebuildConfigList()
+			refreshChangesPanel()
 		end)
 
-		-- Нижний блок из 4 кнопок (2x2) в левой карточке
 		local btnGrid = Utils.Create("Frame", {
 			Size = UDim2.new(1, -20, 0, 62),
 			Position = UDim2.new(0, 10, 1, -70),
@@ -766,6 +797,10 @@ function UI.CreateWindow(options)
 		end
 
 		makeActionBtn("Сохранить", UDim2.new(0, 0, 0, 0), UDim2.new(0.485, 0, 0, 28), function()
+			local clean = string.gsub(nameInput.Text or "", "[^%w_%-]", "")
+			if clean == "" then return end
+			selectedCfg = clean
+			nameInput.Text = clean
 			if Configs and Configs:Save(selectedCfg) then
 				rebuildConfigList()
 				refreshChangesPanel()
@@ -773,22 +808,23 @@ function UI.CreateWindow(options)
 		end)
 
 		makeActionBtn("Загрузить", UDim2.new(0.515, 0, 0, 0), UDim2.new(0.485, 0, 0, 28), function()
-			if Configs and Configs:Load(selectedCfg) then
+			if Configs and selectedCfg ~= "" and Configs:Load(selectedCfg) then
 				rebuildConfigList()
 				refreshChangesPanel()
 			end
 		end)
 
 		makeActionBtn("Autoload", UDim2.new(0, 0, 0, 34), UDim2.new(0.485, 0, 0, 28), function()
-			if Configs and Configs:SetAutoload(selectedCfg) then
+			if Configs and selectedCfg ~= "" and Configs:SetAutoload(selectedCfg) then
 				rebuildConfigList()
 			end
 		end)
 
 		makeActionBtn("Удалить", UDim2.new(0.515, 0, 0, 34), UDim2.new(0.485, 0, 0, 28), function()
-			if Configs and Configs:Delete(selectedCfg) then
+			if Configs and selectedCfg ~= "" then
+				Configs:Delete(selectedCfg)
 				local list = Configs:GetList()
-				selectedCfg = list[1] or "default"
+				selectedCfg = list[1] or ""
 				nameInput.Text = selectedCfg
 				rebuildConfigList()
 				refreshChangesPanel()

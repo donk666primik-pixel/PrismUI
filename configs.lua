@@ -87,7 +87,7 @@ function Configs:GetAutoload()
 			end
 		end
 	end
-	return "default"
+	return ""
 end
 
 function Configs:Save(configName)

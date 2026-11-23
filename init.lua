@@ -117,6 +117,11 @@ local homeTab = Window:AddTab({
 	RightTitle = "Дополнительно"
 })
 
+local autoloadName = Configs:GetAutoload()
+if autoloadName ~= "" then
+	Configs:Load(autoloadName)
+end
+
 homeTab.Left:AddThemePicker("Тема", "Переключает цветовую схему интерфейса")
 
 local fontDrop = homeTab.Left:AddDropdown({
