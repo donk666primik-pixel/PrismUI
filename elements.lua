@@ -1582,11 +1582,15 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		}
 	end
 
-	-- 9. ThemePicker
+	-- 9. ThemePicker (сетка с переносом рядов, чтобы помещалось 10+ тем)
 	function api:AddThemePicker(labelTextStr, tipText)
+		local perRow = 6
+		local totalRows = math.max(1, math.ceil(#Themes.Order / perRow))
+		local rowHeight = totalRows * 30 - 4
+
 		local row = Utils.Create("Frame", {
 			Name = "ThemePickerRow",
-			Size = UDim2.new(1, 0, 0, 26),
+			Size = UDim2.new(1, 0, 0, rowHeight),
 			BackgroundTransparency = 1,
 			ZIndex = 9
 		}, columnContainer)
@@ -1607,11 +1611,14 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 
 		for idx, themeKey in ipairs(Themes.Order) do
 			local preset = Themes.Presets[themeKey]
-			local xPos = 70 + (idx - 1) * 30
+			local colIdx = (idx - 1) % perRow
+			local rowIdx = math.floor((idx - 1) / perRow)
+			local xPos = 70 + colIdx * 30
+			local yPos = rowIdx * 30
 
 			local swatchHolder = Utils.Create("Frame", {
 				Size = UDim2.new(0, 26, 0, 26),
-				Position = UDim2.new(0, xPos, 0, 0),
+				Position = UDim2.new(0, xPos, 0, yPos),
 				BackgroundTransparency = 1,
 				ZIndex = 9
 			}, row)
