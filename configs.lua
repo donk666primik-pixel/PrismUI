@@ -83,12 +83,11 @@ function Configs:SetAutoload(configName)
 	local name = cleanConfigName(configName)
 	local currentAuto = self:GetAutoload()
 
-	-- Если нажали Autoload на конфиг, который уже стоит на автозагрузке — сбрасываем
+	-- Если нажали Autoload на конфиг, который уже стоит на автозагрузке — перезаписываем пустотой
 	if name == "" or name == currentAuto then
+		pcall(writefile, AUTOLOAD_FILE, "")
 		if type(delfile) == "function" then
 			pcall(delfile, AUTOLOAD_FILE)
-		else
-			pcall(writefile, AUTOLOAD_FILE, "")
 		end
 		return true
 	end
