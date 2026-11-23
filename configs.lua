@@ -77,17 +77,24 @@ function Configs:SetAutoload(configName)
 	return true
 end
 
-function Configs:GetAutoload()
-	if type(isfile) == "function" and type(readfile) == "function" then
-		local ok, exists = pcall(isfile, AUTOLOAD_FILE)
-		if ok and exists then
-			local rOk, content = pcall(readfile, AUTOLOAD_FILE)
-			if rOk and type(content) == "string" and content ~= "" then
-				return cleanConfigName(content)
-			end
+function Configs:SetAutoload(configName)
+	if type(writefile) ~= "function" then return false end
+	ensureFolders()
+	local name = cleanConfigName(configName)
+	local currentAuto = self:GetAutoload()
+
+	-- Если нажали Autoload на конфиг, который уже стоит на автозагрузке — сбрасываем
+	if name == "" or name == currentAuto then
+		if type(delfile) == "function" then
+			pcall(delfile, AUTOLOAD_FILE)
+		else
+			pcall(writefile, AUTOLOAD_FILE, "")
 		end
+		return true
 	end
-	return ""
+
+	pcall(writefile, AUTOLOAD_FILE, name)
+	return true
 end
 
 function Configs:Save(configName)
@@ -275,7 +282,7 @@ end
 function Configs:GetChangesSummary(compareConfigName)
 	local name = cleanConfigName(compareConfigName)
 	if name == "" then
-		return { "Конфиг не выбран" }
+		return { "Выберите конфиг из списка слева" }
 	end
 
 	if type(isfile) ~= "function" or type(readfile) ~= "function" then

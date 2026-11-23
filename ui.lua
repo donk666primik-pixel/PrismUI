@@ -635,7 +635,7 @@ function UI.CreateWindow(options)
 			selectedCfg = initialList[1]
 		end
 
-		-- Поле ввода имени конфига (пустое, если конфигов ещё нет)
+		-- Поле ввода имени конфига (всегда пустое, если конфигов ещё нет)
 		local nameInput = Utils.Create("TextBox", {
 			Size = UDim2.new(1, -20, 0, 28),
 			Position = UDim2.new(0, 10, 0, 10),
@@ -653,7 +653,7 @@ function UI.CreateWindow(options)
 		themeManager:Bind(nameInput, "BackgroundColor3", "ColumnBg")
 		themeManager:Bind(nameInput, "TextColor3", "Text")
 
-		-- Контейнер области списка конфигов
+		-- Область списка конфигов
 		local listArea = Utils.Create("Frame", {
 			Size = UDim2.new(1, -20, 1, -118),
 			Position = UDim2.new(0, 10, 0, 46),
@@ -677,7 +677,7 @@ function UI.CreateWindow(options)
 
 		-- Текст строго посередине списка, когда конфигов нет
 		local emptyHintLabel = Utils.Create("TextLabel", {
-			Size = UDim2.new(1, -20, 1, 0),
+			Size = UDim2.new(1, -16, 1, 0),
 			Position = UDim2.new(0.5, 0, 0.5, 0),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			BackgroundTransparency = 1,
@@ -689,8 +689,8 @@ function UI.CreateWindow(options)
 			TextYAlignment = Enum.TextYAlignment.Center,
 			TextColor3 = themeManager.Current.Text,
 			TextTransparency = 0.35,
-			Visible = false,
-			ZIndex = 11
+			Visible = (#initialList == 0),
+			ZIndex = 12
 		}, listArea)
 		themeManager:Bind(emptyHintLabel, "TextColor3", "Text")
 
@@ -753,12 +753,10 @@ function UI.CreateWindow(options)
 			end
 		end
 
-		nameInput.FocusLost:Connect(function()
+		-- Обновляем selectedCfg при любом изменении текста в поле ввода (без необходимости жать Enter)
+		nameInput:GetPropertyChangedSignal("Text"):Connect(function()
 			local clean = string.gsub(nameInput.Text or "", "[^%w_%-]", "")
 			selectedCfg = clean
-			nameInput.Text = clean
-			rebuildConfigList()
-			refreshChangesPanel()
 		end)
 
 		local btnGrid = Utils.Create("Frame", {
@@ -808,21 +806,26 @@ function UI.CreateWindow(options)
 		end)
 
 		makeActionBtn("Загрузить", UDim2.new(0.515, 0, 0, 0), UDim2.new(0.485, 0, 0, 28), function()
-			if Configs and selectedCfg ~= "" and Configs:Load(selectedCfg) then
+			local target = string.gsub(nameInput.Text or selectedCfg, "[^%w_%-]", "")
+			if Configs and target ~= "" and Configs:Load(target) then
+				selectedCfg = target
 				rebuildConfigList()
 				refreshChangesPanel()
 			end
 		end)
 
 		makeActionBtn("Autoload", UDim2.new(0, 0, 0, 34), UDim2.new(0.485, 0, 0, 28), function()
-			if Configs and selectedCfg ~= "" and Configs:SetAutoload(selectedCfg) then
+			local target = string.gsub(nameInput.Text or selectedCfg, "[^%w_%-]", "")
+			if Configs and target ~= "" and Configs:SetAutoload(target) then
+				selectedCfg = target
 				rebuildConfigList()
 			end
 		end)
 
 		makeActionBtn("Удалить", UDim2.new(0.515, 0, 0, 34), UDim2.new(0.485, 0, 0, 28), function()
-			if Configs and selectedCfg ~= "" then
-				Configs:Delete(selectedCfg)
+			local target = string.gsub(nameInput.Text or selectedCfg, "[^%w_%-]", "")
+			if Configs and target ~= "" then
+				Configs:Delete(target)
 				local list = Configs:GetList()
 				selectedCfg = list[1] or ""
 				nameInput.Text = selectedCfg
