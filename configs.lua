@@ -11,20 +11,28 @@ local AUTOLOAD_FILE = "PrismUI/autoload.txt"
 local function ensureFolders()
 	if type(isfolder) == "function" and type(makefolder) == "function" then
 		if not isfolder(FOLDER_ROOT) then
-			makefolder(FOLDER_ROOT)
+			pcall(makefolder, FOLDER_ROOT)
 		end
 		if not isfolder(FOLDER_CONFIGS) then
-			makefolder(FOLDER_CONFIGS)
+			pcall(makefolder, FOLDER_CONFIGS)
 		end
 	end
 end
 
+local function cleanConfigName(rawName)
+	if type(rawName) ~= "string" then return "" end
+	local stripped = string.gsub(rawName, "%s*%[Autoload%]%s*$", "")
+	return string.gsub(stripped, "[^%w_%-]", "")
+end
+
 local function valuesEqual(a, b)
+	if a == nil and b == nil then
+		return true
+	end
 	if type(a) ~= type(b) then
 		return false
 	end
 	if type(a) == "table" then
-		if #a ~= #b then return false end
 		for k, v in pairs(a) do
 			if not valuesEqual(v, b[k]) then
 				return false
@@ -40,7 +48,6 @@ local function valuesEqual(a, b)
 	return a == b
 end
 
--- Регистрация элемента: flagName, elementObj, sectionName (для вкладки "Изменения"), defaultVal
 function Configs:Register(flagName, elementObj, sectionName, defaultVal)
 	if not flagName or not elementObj then return end
 	local initial = defaultVal
@@ -57,22 +64,24 @@ end
 function Configs:SetAutoload(configName)
 	if type(writefile) ~= "function" then return false end
 	ensureFolders()
-	if not configName or configName == "" then
+	local name = cleanConfigName(configName)
+	if name == "" then
 		if type(isfile) == "function" and type(delfile) == "function" and isfile(AUTOLOAD_FILE) then
-			delfile(AUTOLOAD_FILE)
+			pcall(delfile, AUTOLOAD_FILE)
 		end
 		return true
 	end
-	writefile(AUTOLOAD_FILE, tostring(configName))
+	pcall(writefile, AUTOLOAD_FILE, name)
 	return true
 end
 
 function Configs:GetAutoload()
 	if type(isfile) == "function" and type(readfile) == "function" then
-		if isfile(AUTOLOAD_FILE) then
-			local content = readfile(AUTOLOAD_FILE)
-			if type(content) == "string" and content ~= "" then
-				return string.gsub(content, "%s+", "")
+		local ok, exists = pcall(isfile, AUTOLOAD_FILE)
+		if ok and exists then
+			local rOk, content = pcall(readfile, AUTOLOAD_FILE)
+			if rOk and type(content) == "string" and content ~= "" then
+				return cleanConfigName(content)
 			end
 		end
 	end
@@ -84,6 +93,9 @@ function Configs:Save(configName)
 		warn("[PrismUI] Экзекутор не поддерживает writefile")
 		return false
 	end
+
+	local name = cleanConfigName(configName)
+	if name == "" then return false end
 
 	ensureFolders()
 	local data = {
@@ -116,8 +128,8 @@ function Configs:Save(configName)
 		return false
 	end
 
-	writefile(FOLDER_CONFIGS .. "/" .. configName .. ".json", encoded)
-	return true
+	local wOk = pcall(writefile, FOLDER_CONFIGS .. "/" .. name .. ".json", encoded)
+	return wOk
 end
 
 function Configs:Load(configName)
@@ -125,12 +137,19 @@ function Configs:Load(configName)
 		return false
 	end
 
-	local path = FOLDER_CONFIGS .. "/" .. configName .. ".json"
-	if not isfile(path) then
+	local name = cleanConfigName(configName)
+	if name == "" then return false end
+
+	local path = FOLDER_CONFIGS .. "/" .. name .. ".json"
+	local okExists, exists = pcall(isfile, path)
+	if not okExists or not exists then
 		return false
 	end
 
-	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, readfile(path))
+	local okRead, raw = pcall(readfile, path)
+	if not okRead then return false end
+
+	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
 	if not ok or type(decoded) ~= "table" then
 		return false
 	end
@@ -164,54 +183,88 @@ function Configs:Load(configName)
 end
 
 function Configs:Delete(configName)
-	if type(isfile) ~= "function" or type(delfile) == "function" then
-		return false
+	local name = cleanConfigName(configName)
+	if name == "" then return false end
+
+	local path = FOLDER_CONFIGS .. "/" .. name .. ".json"
+	local removed = false
+
+	if type(delfile) == "function" then
+		local ok = pcall(delfile, path)
+		if ok then
+			removed = true
+		end
+	elseif type(writefile) == "function" then
+		-- Фоллбэк для экзекуторов без delfile
+		pcall(writefile, path, "")
+		removed = true
 	end
 
-	local path = FOLDER_CONFIGS .. "/" .. configName .. ".json"
-	if isfile(path) then
-		delfile(path)
-		if self:GetAutoload() == configName then
-			self:SetAutoload("default")
-		end
-		return true
+	if removed and self:GetAutoload() == name then
+		self:SetAutoload("")
 	end
-	return false
+
+	return removed
 end
 
 function Configs:GetList()
 	if type(listfiles) ~= "function" then
-		return { "default" }
+		return {}
 	end
 	ensureFolders()
 	local names = {}
-	for _, filePath in ipairs(listfiles(FOLDER_CONFIGS)) do
-		local name = string.match(filePath, "([^/\\]+)%.json$")
-		if name then
-			table.insert(names, name)
-		end
-	end
-	if #names == 0 then
-		table.insert(names, "default")
-	end
-	return names
-end
-
--- Подсчёт количества изменённых настроек по разделам для правой панели вкладки "Конфиги"
-function Configs:GetChangesSummary(compareConfigName)
-	local savedValues = nil
-	local savedBinds = nil
-
-	if compareConfigName and type(isfile) == "function" and type(readfile) == "function" then
-		local path = FOLDER_CONFIGS .. "/" .. compareConfigName .. ".json"
-		if isfile(path) then
-			local ok, decoded = pcall(HttpService.JSONDecode, HttpService, readfile(path))
-			if ok and type(decoded) == "table" then
-				savedValues = decoded.Values or decoded
-				savedBinds = decoded.Binds or {}
+	local ok, files = pcall(listfiles, FOLDER_CONFIGS)
+	if ok and type(files) == "table" then
+		for _, filePath in ipairs(files) do
+			local normalized = string.gsub(tostring(filePath), "\\", "/")
+			local name = string.match(normalized, "([^/]+)%.json$")
+			if name and name ~= "" then
+				-- Проверяем, что файл не пустой (на случай фоллбэк-удаления)
+				local valid = true
+				if type(readfile) == "function" then
+					local rOk, content = pcall(readfile, filePath)
+					if rOk and content == "" then
+						valid = false
+					end
+				end
+				if valid then
+					table.insert(names, name)
+				end
 			end
 		end
 	end
+	table.sort(names)
+	return names
+end
+
+function Configs:GetChangesSummary(compareConfigName)
+	local name = cleanConfigName(compareConfigName)
+	if name == "" then
+		return { "Конфиг не выбран" }
+	end
+
+	if type(isfile) ~= "function" or type(readfile) ~= "function" then
+		return { "Нет доступа к файлам конфигов" }
+	end
+
+	local path = FOLDER_CONFIGS .. "/" .. name .. ".json"
+	local okEx, exists = pcall(isfile, path)
+	if not okEx or not exists then
+		return { string.format("Конфиг «%s» ещё не сохранён", name) }
+	end
+
+	local okRead, raw = pcall(readfile, path)
+	if not okRead or raw == "" then
+		return { string.format("Конфиг «%s» не найден", name) }
+	end
+
+	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+	if not ok or type(decoded) ~= "table" then
+		return { "Ошибка чтения файла конфига" }
+	end
+
+	local savedValues = decoded.Values or {}
+	local savedBinds = decoded.Binds or {}
 
 	local counts = {}
 	local order = {}
@@ -224,31 +277,24 @@ function Configs:GetChangesSummary(compareConfigName)
 		end
 
 		local el = entry.Element
+
 		local curVal = el.Get and el.Get() or nil
 		if typeof(curVal) == "EnumItem" then
 			curVal = curVal.Name
 		end
 
-		local baseVal = entry.Default
-		if typeof(baseVal) == "EnumItem" then
-			baseVal = baseVal.Name
+		local cfgVal = savedValues[flagName]
+		if type(cfgVal) == "table" and cfgVal.__enum == "KeyCode" then
+			cfgVal = cfgVal.name
 		end
 
-		if savedValues and savedValues[flagName] ~= nil then
-			local sv = savedValues[flagName]
-			if type(sv) == "table" and sv.__enum == "KeyCode" then
-				baseVal = sv.name
-			else
-				baseVal = sv
-			end
-		end
+		local valDiffers = not valuesEqual(curVal, cfgVal)
 
-		local valChanged = not valuesEqual(curVal, baseVal)
 		local curBind = el.GetBind and el.GetBind() or nil
-		local savedBind = savedBinds and savedBinds[flagName] or nil
-		local bindChanged = not valuesEqual(curBind, savedBind)
+		local cfgBind = savedBinds[flagName]
+		local bindDiffers = not valuesEqual(curBind, cfgBind)
 
-		if valChanged or bindChanged then
+		if valDiffers or bindDiffers then
 			counts[sec] = counts[sec] + 1
 		end
 	end
@@ -261,7 +307,7 @@ function Configs:GetChangesSummary(compareConfigName)
 	end
 
 	if #lines == 0 then
-		table.insert(lines, "Изменений нет")
+		table.insert(lines, "Изменений нет (совпадает с конфигом)")
 	end
 
 	return lines
