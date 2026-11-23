@@ -129,11 +129,19 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		local function openContextMenu(mousePos)
 			closeActivePopup()
 
+			local rowCount = 2
+			if bindConfig.Kind ~= "Button" then
+				rowCount = rowCount + 1
+			end
+			if bindConfig.Kind == "Slider" or bindConfig.Kind == "Dropdown" then
+				rowCount = rowCount + 1
+			end
+			local popupHeight = 14 + rowCount * 24 + (rowCount - 1) * 4
+
 			local popupParent = getPopupParent()
 			local popup = Utils.Create("Frame", {
 				Name = "NeverloseBindPopup",
-				Size = UDim2.new(0, 184, 0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
+				Size = UDim2.new(0, 184, 0, popupHeight),
 				BackgroundColor3 = themeManager.Current.TopBar,
 				Active = true,
 				ZIndex = 500
@@ -142,24 +150,14 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			themeManager:Bind(popup, "BackgroundColor3", "TopBar")
 			activeContextPopup = popup
 
-			-- Перехват кликов внутри самого попапа, чтобы камера не крутилась
-			Utils.Create("TextButton", {
-				Size = UDim2.new(1, 0, 1, 0),
-				BackgroundTransparency = 1,
-				Text = "",
-				AutoButtonColor = false,
-				Modal = true,
-				ZIndex = 500
-			}, popup)
-
 			Utils.Create("UIListLayout", {
-				Padding = UDim.new(0, 5),
+				Padding = UDim.new(0, 4),
 				SortOrder = Enum.SortOrder.LayoutOrder
 			}, popup)
 
 			Utils.Create("UIPadding", {
-				PaddingTop = UDim.new(0, 8),
-				PaddingBottom = UDim.new(0, 8),
+				PaddingTop = UDim.new(0, 7),
+				PaddingBottom = UDim.new(0, 7),
 				PaddingLeft = UDim.new(0, 9),
 				PaddingRight = UDim.new(0, 9)
 			}, popup)
@@ -168,7 +166,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 
 			-- Заголовок без крестика
 			local headTitle = Utils.Create("TextLabel", {
-				Size = UDim2.new(1, 0, 0, 16),
+				Size = UDim2.new(1, 0, 0, 20),
 				BackgroundTransparency = 1,
 				Font = Enum.Font.GothamBold,
 				Text = "Бинд: " .. baseTitle,
@@ -183,7 +181,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 
 			-- Строка выбора клавиши (Backspace/Delete сбрасывает бинд)
 			local keyRow = Utils.Create("Frame", {
-				Size = UDim2.new(1, 0, 0, 22),
+				Size = UDim2.new(1, 0, 0, 24),
 				BackgroundTransparency = 1,
 				LayoutOrder = 2,
 				ZIndex = 501
@@ -225,7 +223,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 			-- Режим Hold / Toggle
 			if bindConfig.Kind ~= "Button" then
 				local modeRow = Utils.Create("Frame", {
-					Size = UDim2.new(1, 0, 0, 22),
+					Size = UDim2.new(1, 0, 0, 24),
 					BackgroundTransparency = 1,
 					LayoutOrder = 3,
 					ZIndex = 501
@@ -267,10 +265,10 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				end)
 			end
 
-			-- Целевое значение для Slider
+			-- Целевое значение для Slider / Dropdown
 			if bindConfig.Kind == "Slider" then
 				local valRow = Utils.Create("Frame", {
-					Size = UDim2.new(1, 0, 0, 22),
+					Size = UDim2.new(1, 0, 0, 24),
 					BackgroundTransparency = 1,
 					LayoutOrder = 4,
 					ZIndex = 501
@@ -322,7 +320,7 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 				end)
 			elseif bindConfig.Kind == "Dropdown" and bindConfig.GetOptions then
 				local valRow = Utils.Create("Frame", {
-					Size = UDim2.new(1, 0, 0, 22),
+					Size = UDim2.new(1, 0, 0, 24),
 					BackgroundTransparency = 1,
 					LayoutOrder = 4,
 					ZIndex = 501
@@ -1673,6 +1671,20 @@ function Elements.AttachToColumn(columnContainer, themeManager, overlayRoot)
 		themeManager:OnChanged(function(target)
 			syncActiveSwatch(target.Name)
 		end)
+	end
+
+	-- 10. AddConfigs: [ Конфиги ] + кнопка "Настроить", открывающая отдельную вкладку конфигов
+	function api:AddConfigs(windowObj, tipText)
+		return self:AddButton({
+			Name = "Конфиги",
+			ButtonText = "Настроить",
+			Tip = tipText or "Открывает страницу управления конфигами",
+			Callback = function()
+				if windowObj and windowObj.OpenConfigsTab then
+					windowObj:OpenConfigsTab()
+				end
+			end
+		})
 	end
 
 	return api
