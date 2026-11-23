@@ -71,7 +71,6 @@ function UI.CreateWindow(options)
 	Utils.AddCorner(leftDock, 20)
 	themeManager:Bind(leftDock, "BackgroundColor3", "MainBg")
 
-	-- Блокер ПКМ для левого дока
 	Utils.Create("TextButton", {
 		Name = "DockInputSink",
 		Size = UDim2.new(1, 0, 1, 0),
@@ -172,7 +171,6 @@ function UI.CreateWindow(options)
 	Utils.AddCorner(mainWindow, 22)
 	themeManager:Bind(mainWindow, "BackgroundColor3", "MainBg")
 
-	-- Блокер ПКМ на всю площадь главного окна (запрещает вращение камеры при клике по UI)
 	Utils.Create("TextButton", {
 		Name = "WindowInputSink",
 		Size = UDim2.new(1, 0, 1, 0),
@@ -253,7 +251,8 @@ function UI.CreateWindow(options)
 		IsVisible = true,
 		IsAnimating = true,
 		Cleanups = {},
-		Unloaded = false
+		Unloaded = false,
+		ConfigsTab = nil
 	}
 
 	local rootScale = Utils.Create("UIScale", { Scale = 0 }, root)
@@ -307,6 +306,10 @@ function UI.CreateWindow(options)
 
 		tabObj.Underline.Visible = true
 		Utils.Tween(tabObj.Underline, 0.22, { Size = UDim2.new(1, 0, 0, 2) }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+		if tabObj.OnSelect then
+			task.spawn(tabObj.OnSelect)
+		end
 	end
 
 	function Window:ToggleVisible()
@@ -494,16 +497,21 @@ function UI.CreateWindow(options)
 			listScroll:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(syncColumnScrollbar)
 			listScroll:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(syncColumnScrollbar)
 
-			return Elements.AttachToColumn(listScroll, themeManager, root)
+			return Elements.AttachToColumn(listScroll, themeManager, root), col
 		end
+
+		local leftApi, leftColFrame = buildColumn("LeftColumn", UDim2.new(0, 0, 0, 0), tabConfig.LeftTitle or "Под игру")
+		local rightApi, rightColFrame = buildColumn("RightColumn", UDim2.new(0.505, 0, 0, 0), tabConfig.RightTitle or "Оптимизованные классические")
 
 		local Tab = {
 			Name = tabName,
 			Button = tabBtn,
 			Underline = underline,
 			Container = tabContainer,
-			Left = buildColumn("LeftColumn", UDim2.new(0, 0, 0, 0), tabConfig.LeftTitle or "Под игру"),
-			Right = buildColumn("RightColumn", UDim2.new(0.505, 0, 0, 0), tabConfig.RightTitle or "Оптимизованные классические")
+			Left = leftApi,
+			Right = rightApi,
+			LeftColumnFrame = leftColFrame,
+			RightColumnFrame = rightColFrame
 		}
 
 		if closable then
@@ -547,6 +555,10 @@ function UI.CreateWindow(options)
 					end
 				end
 
+				if Window.ConfigsTab == Tab then
+					Window.ConfigsTab = nil
+				end
+
 				tabContainer:Destroy()
 				if Window.ActiveTab == Tab and #Window.Tabs > 0 then
 					Window:SelectTab(Window.Tabs[1])
@@ -571,6 +583,227 @@ function UI.CreateWindow(options)
 		end
 
 		return Tab
+	end
+
+	-- Отдельная страница настройки конфигов (по макету)
+	function Window:OpenConfigsTab()
+		if self.ConfigsTab and self.ConfigsTab.Container and self.ConfigsTab.Container.Parent then
+			self:SelectTab(self.ConfigsTab)
+			return self.ConfigsTab
+		end
+
+		local Configs = _G.PrismUI.Configs
+		local tab = self:AddTab({
+			Name = "Конфиги",
+			Closable = true,
+			LeftTitle = "Выбор конфига",
+			RightTitle = "Изменения"
+		})
+		self.ConfigsTab = tab
+
+		-- Скрываем стандартные скролл-контейнеры и делаем большие внутренние карточки как на макете
+		local oldLeftScroll = tab.LeftColumnFrame:FindFirstChild("ElementsScroll")
+		if oldLeftScroll then oldLeftScroll.Visible = false end
+		local oldRightScroll = tab.RightColumnFrame:FindFirstChild("ElementsScroll")
+		if oldRightScroll then oldRightScroll.Visible = false end
+
+		local leftInnerCard = Utils.Create("Frame", {
+			Name = "ConfigSelectCard",
+			Size = UDim2.new(1, -24, 1, -48),
+			Position = UDim2.new(0, 12, 0, 36),
+			BackgroundColor3 = themeManager.Current.MainBg,
+			ZIndex = 9
+		}, tab.LeftColumnFrame)
+		Utils.AddCorner(leftInnerCard, 16)
+		themeManager:Bind(leftInnerCard, "BackgroundColor3", "MainBg")
+
+		local rightInnerCard = Utils.Create("Frame", {
+			Name = "ConfigChangesCard",
+			Size = UDim2.new(1, -24, 1, -48),
+			Position = UDim2.new(0, 12, 0, 36),
+			BackgroundColor3 = themeManager.Current.MainBg,
+			ZIndex = 9
+		}, tab.RightColumnFrame)
+		Utils.AddCorner(rightInnerCard, 16)
+		themeManager:Bind(rightInnerCard, "BackgroundColor3", "MainBg")
+
+		local selectedCfg = Configs and Configs:GetAutoload() or "default"
+
+		-- Верхнее поле ввода имени конфига в левой карточке
+		local nameInput = Utils.Create("TextBox", {
+			Size = UDim2.new(1, -20, 0, 28),
+			Position = UDim2.new(0, 10, 0, 10),
+			BackgroundColor3 = themeManager.Current.ColumnBg,
+			Font = Enum.Font.GothamMedium,
+			PlaceholderText = "Имя конфига...",
+			PlaceholderColor3 = Color3.fromRGB(135, 135, 135),
+			Text = selectedCfg,
+			TextSize = 12,
+			TextColor3 = themeManager.Current.Text,
+			ClearTextOnFocus = false,
+			ZIndex = 10
+		}, leftInnerCard)
+		Utils.AddCorner(nameInput, 8)
+		themeManager:Bind(nameInput, "BackgroundColor3", "ColumnBg")
+		themeManager:Bind(nameInput, "TextColor3", "Text")
+
+		-- Список доступных конфигов
+		local cfgListScroll = Utils.Create("ScrollingFrame", {
+			Size = UDim2.new(1, -20, 1, -118),
+			Position = UDim2.new(0, 10, 0, 46),
+			BackgroundTransparency = 1,
+			ScrollBarThickness = 2,
+			CanvasSize = UDim2.new(0, 0, 0, 0),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ZIndex = 10
+		}, leftInnerCard)
+
+		Utils.Create("UIListLayout", {
+			Padding = UDim.new(0, 6),
+			SortOrder = Enum.SortOrder.LayoutOrder
+		}, cfgListScroll)
+
+		-- Сводка изменений в правой карточке
+		local changesLabel = Utils.Create("TextLabel", {
+			Size = UDim2.new(1, -24, 1, -20),
+			Position = UDim2.new(0, 12, 0, 12),
+			BackgroundTransparency = 1,
+			Font = Enum.Font.GothamMedium,
+			Text = "Загрузка...",
+			TextSize = 13,
+			TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			TextColor3 = themeManager.Current.Text,
+			ZIndex = 10
+		}, rightInnerCard)
+		themeManager:Bind(changesLabel, "TextColor3", "Text")
+
+		local function refreshChangesPanel()
+			if not Configs then return end
+			local lines = Configs:GetChangesSummary(selectedCfg)
+			changesLabel.Text = table.concat(lines, "\n")
+		end
+
+		local function rebuildConfigList()
+			for _, ch in ipairs(cfgListScroll:GetChildren()) do
+				if ch:IsA("TextButton") then
+					ch:Destroy()
+				end
+			end
+			if not Configs then return end
+
+			local autoloadName = Configs:GetAutoload()
+			for _, cfgName in ipairs(Configs:GetList()) do
+				local isSelected = (cfgName == selectedCfg)
+				local isAuto = (cfgName == autoloadName)
+
+				local itemBtn = Utils.Create("TextButton", {
+					Size = UDim2.new(1, 0, 0, 28),
+					BackgroundColor3 = isSelected and themeManager.Current.KnobOn or themeManager.Current.ColumnBg,
+					Font = Enum.Font.GothamBold,
+					Text = isAuto and (cfgName .. "  [Autoload]") or cfgName,
+					TextSize = 12,
+					TextColor3 = themeManager.Current.Text,
+					AutoButtonColor = false,
+					ZIndex = 11
+				}, cfgListScroll)
+				Utils.AddCorner(itemBtn, 8)
+
+				itemBtn.MouseButton1Click:Connect(function()
+					selectedCfg = cfgName
+					nameInput.Text = cfgName
+					rebuildConfigList()
+					refreshChangesPanel()
+				end)
+			end
+		end
+
+		nameInput.FocusLost:Connect(function()
+			local clean = string.gsub(nameInput.Text or "", "[^%w_%-]", "")
+			if clean ~= "" then
+				selectedCfg = clean
+				nameInput.Text = clean
+				rebuildConfigList()
+				refreshChangesPanel()
+			end
+		end)
+
+		-- Нижний блок из 4 кнопок (2x2) в левой карточке
+		local btnGrid = Utils.Create("Frame", {
+			Size = UDim2.new(1, -20, 0, 62),
+			Position = UDim2.new(0, 10, 1, -70),
+			BackgroundTransparency = 1,
+			ZIndex = 10
+		}, leftInnerCard)
+
+		local function makeActionBtn(textStr, posUDim, sizeUDim, onClick)
+			local b = Utils.Create("TextButton", {
+				Size = sizeUDim,
+				Position = posUDim,
+				BackgroundColor3 = themeManager.Current.ColumnBg,
+				Font = Enum.Font.GothamBold,
+				Text = textStr,
+				TextSize = 11,
+				TextColor3 = themeManager.Current.Text,
+				AutoButtonColor = false,
+				ZIndex = 11
+			}, btnGrid)
+			Utils.AddCorner(b, 8)
+			themeManager:Bind(b, "BackgroundColor3", "ColumnBg")
+			themeManager:Bind(b, "TextColor3", "Text")
+
+			b.MouseButton1Click:Connect(function()
+				Utils.Tween(b, 0.1, { BackgroundColor3 = themeManager.Current.KnobOn })
+				task.delay(0.14, function()
+					if b and b.Parent then
+						Utils.Tween(b, 0.16, { BackgroundColor3 = themeManager.Current.ColumnBg })
+					end
+				end)
+				onClick()
+			end)
+			return b
+		end
+
+		makeActionBtn("Сохранить", UDim2.new(0, 0, 0, 0), UDim2.new(0.485, 0, 0, 28), function()
+			if Configs and Configs:Save(selectedCfg) then
+				rebuildConfigList()
+				refreshChangesPanel()
+			end
+		end)
+
+		makeActionBtn("Загрузить", UDim2.new(0.515, 0, 0, 0), UDim2.new(0.485, 0, 0, 28), function()
+			if Configs and Configs:Load(selectedCfg) then
+				rebuildConfigList()
+				refreshChangesPanel()
+			end
+		end)
+
+		makeActionBtn("Autoload", UDim2.new(0, 0, 0, 34), UDim2.new(0.485, 0, 0, 28), function()
+			if Configs and Configs:SetAutoload(selectedCfg) then
+				rebuildConfigList()
+			end
+		end)
+
+		makeActionBtn("Удалить", UDim2.new(0.515, 0, 0, 34), UDim2.new(0.485, 0, 0, 28), function()
+			if Configs and Configs:Delete(selectedCfg) then
+				local list = Configs:GetList()
+				selectedCfg = list[1] or "default"
+				nameInput.Text = selectedCfg
+				rebuildConfigList()
+				refreshChangesPanel()
+			end
+		end)
+
+		tab.OnSelect = function()
+			rebuildConfigList()
+			refreshChangesPanel()
+		end
+
+		rebuildConfigList()
+		refreshChangesPanel()
+		self:SelectTab(tab)
+		return tab
 	end
 
 	function Window:AddGameIcon(iconConfig)

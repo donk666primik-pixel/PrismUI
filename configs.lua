@@ -19,9 +19,39 @@ local function ensureFolders()
 	end
 end
 
-function Configs:Register(flagName, elementObj)
+local function valuesEqual(a, b)
+	if type(a) ~= type(b) then
+		return false
+	end
+	if type(a) == "table" then
+		if #a ~= #b then return false end
+		for k, v in pairs(a) do
+			if not valuesEqual(v, b[k]) then
+				return false
+			end
+		end
+		for k, v in pairs(b) do
+			if not valuesEqual(v, a[k]) then
+				return false
+			end
+		end
+		return true
+	end
+	return a == b
+end
+
+-- Регистрация элемента: flagName, elementObj, sectionName (для вкладки "Изменения"), defaultVal
+function Configs:Register(flagName, elementObj, sectionName, defaultVal)
 	if not flagName or not elementObj then return end
-	self.Items[flagName] = elementObj
+	local initial = defaultVal
+	if initial == nil and elementObj.Get then
+		initial = elementObj.Get()
+	end
+	self.Items[flagName] = {
+		Element = elementObj,
+		Section = sectionName or "Главные настройки",
+		Default = initial
+	}
 end
 
 function Configs:SetAutoload(configName)
@@ -61,7 +91,8 @@ function Configs:Save(configName)
 		Binds = {}
 	}
 
-	for flagName, el in pairs(self.Items) do
+	for flagName, entry in pairs(self.Items) do
+		local el = entry.Element
 		if el.Get then
 			local val = el.Get()
 			if typeof(val) == "EnumItem" then
@@ -108,7 +139,8 @@ function Configs:Load(configName)
 	local bindsMap = decoded.Binds or {}
 
 	for flagName, savedVal in pairs(valuesMap) do
-		local el = self.Items[flagName]
+		local entry = self.Items[flagName]
+		local el = entry and entry.Element
 		if el and el.Set then
 			if type(savedVal) == "table" and savedVal.__enum == "KeyCode" then
 				local keyEnum = Enum.KeyCode[savedVal.name]
@@ -121,7 +153,8 @@ function Configs:Load(configName)
 		end
 	end
 
-	for flagName, el in pairs(self.Items) do
+	for flagName, entry in pairs(self.Items) do
+		local el = entry.Element
 		if el and el.SetBind then
 			el:SetBind(bindsMap[flagName])
 		end
@@ -131,7 +164,7 @@ function Configs:Load(configName)
 end
 
 function Configs:Delete(configName)
-	if type(isfile) ~= "function" or type(delfile) ~= "function" then
+	if type(isfile) ~= "function" or type(delfile) == "function" then
 		return false
 	end
 
@@ -162,6 +195,76 @@ function Configs:GetList()
 		table.insert(names, "default")
 	end
 	return names
+end
+
+-- Подсчёт количества изменённых настроек по разделам для правой панели вкладки "Конфиги"
+function Configs:GetChangesSummary(compareConfigName)
+	local savedValues = nil
+	local savedBinds = nil
+
+	if compareConfigName and type(isfile) == "function" and type(readfile) == "function" then
+		local path = FOLDER_CONFIGS .. "/" .. compareConfigName .. ".json"
+		if isfile(path) then
+			local ok, decoded = pcall(HttpService.JSONDecode, HttpService, readfile(path))
+			if ok and type(decoded) == "table" then
+				savedValues = decoded.Values or decoded
+				savedBinds = decoded.Binds or {}
+			end
+		end
+	end
+
+	local counts = {}
+	local order = {}
+
+	for flagName, entry in pairs(self.Items) do
+		local sec = entry.Section or "Главные настройки"
+		if counts[sec] == nil then
+			counts[sec] = 0
+			table.insert(order, sec)
+		end
+
+		local el = entry.Element
+		local curVal = el.Get and el.Get() or nil
+		if typeof(curVal) == "EnumItem" then
+			curVal = curVal.Name
+		end
+
+		local baseVal = entry.Default
+		if typeof(baseVal) == "EnumItem" then
+			baseVal = baseVal.Name
+		end
+
+		if savedValues and savedValues[flagName] ~= nil then
+			local sv = savedValues[flagName]
+			if type(sv) == "table" and sv.__enum == "KeyCode" then
+				baseVal = sv.name
+			else
+				baseVal = sv
+			end
+		end
+
+		local valChanged = not valuesEqual(curVal, baseVal)
+		local curBind = el.GetBind and el.GetBind() or nil
+		local savedBind = savedBinds and savedBinds[flagName] or nil
+		local bindChanged = not valuesEqual(curBind, savedBind)
+
+		if valChanged or bindChanged then
+			counts[sec] = counts[sec] + 1
+		end
+	end
+
+	local lines = {}
+	for _, sec in ipairs(order) do
+		if counts[sec] > 0 then
+			table.insert(lines, string.format("%s: %d изменений", sec, counts[sec]))
+		end
+	end
+
+	if #lines == 0 then
+		table.insert(lines, "Изменений нет")
+	end
+
+	return lines
 end
 
 _G.PrismUI.Configs = Configs
