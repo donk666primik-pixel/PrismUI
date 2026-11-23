@@ -3,6 +3,7 @@ local TweenService = game:GetService("TweenService")
 local Themes = {}
 
 Themes.Presets = {
+	-- ==================== ТЁМНЫЕ ТЕМЫ ====================
 	Dark = {
 		Name = "Dark",
 		Preview = Color3.fromRGB(36, 36, 36),
@@ -21,44 +22,6 @@ Themes.Presets = {
 		ScrollTrack = Color3.fromRGB(45, 45, 45),
 		ScrollThumb = Color3.fromRGB(95, 95, 95),
 		DockSlot = Color3.fromRGB(52, 52, 52)
-	},
-	Light = {
-		Name = "Light",
-		Preview = Color3.fromRGB(214, 214, 214),
-		PreviewAccent = nil,
-		MainBg = Color3.fromRGB(214, 214, 214),
-		TopBar = Color3.fromRGB(182, 182, 182),
-		TabBg = Color3.fromRGB(205, 205, 205),
-		ColumnBg = Color3.fromRGB(182, 182, 182),
-		ElementBg = Color3.fromRGB(214, 214, 214),
-		TrackBg = Color3.fromRGB(162, 162, 162),
-		KnobOff = Color3.fromRGB(172, 104, 104),
-		KnobOn = Color3.fromRGB(98, 178, 118),
-		SliderKnob = Color3.fromRGB(198, 198, 198),
-		Text = Color3.fromRGB(255, 255, 255),
-		Accent = Color3.fromRGB(255, 255, 255),
-		ScrollTrack = Color3.fromRGB(165, 165, 165),
-		ScrollThumb = Color3.fromRGB(194, 194, 194),
-		DockSlot = Color3.fromRGB(255, 255, 255)
-	},
-	LightPurple = {
-		Name = "LightPurple",
-		Preview = Color3.fromRGB(214, 214, 214),
-		PreviewAccent = Color3.fromRGB(98, 92, 186),
-		MainBg = Color3.fromRGB(214, 214, 214),
-		TopBar = Color3.fromRGB(182, 182, 182),
-		TabBg = Color3.fromRGB(205, 205, 205),
-		ColumnBg = Color3.fromRGB(182, 182, 182),
-		ElementBg = Color3.fromRGB(214, 214, 214),
-		TrackBg = Color3.fromRGB(162, 162, 162),
-		KnobOff = Color3.fromRGB(172, 104, 104),
-		KnobOn = Color3.fromRGB(98, 92, 186),
-		SliderKnob = Color3.fromRGB(130, 124, 220),
-		Text = Color3.fromRGB(255, 255, 255),
-		Accent = Color3.fromRGB(98, 92, 186),
-		ScrollTrack = Color3.fromRGB(165, 165, 165),
-		ScrollThumb = Color3.fromRGB(115, 108, 210),
-		DockSlot = Color3.fromRGB(255, 255, 255)
 	},
 	DarkPurple = {
 		Name = "DarkPurple",
@@ -136,25 +99,6 @@ Themes.Presets = {
 		ScrollThumb = Color3.fromRGB(138, 194, 42),
 		DockSlot = Color3.fromRGB(36, 40, 36)
 	},
-	Nord = {
-		Name = "Nord",
-		Preview = Color3.fromRGB(46, 52, 64),
-		PreviewAccent = Color3.fromRGB(136, 192, 208),
-		MainBg = Color3.fromRGB(46, 52, 64),
-		TopBar = Color3.fromRGB(36, 41, 51),
-		TabBg = Color3.fromRGB(59, 66, 82),
-		ColumnBg = Color3.fromRGB(40, 45, 56),
-		ElementBg = Color3.fromRGB(67, 76, 94),
-		TrackBg = Color3.fromRGB(76, 86, 106),
-		KnobOff = Color3.fromRGB(191, 97, 106),
-		KnobOn = Color3.fromRGB(136, 192, 208),
-		SliderKnob = Color3.fromRGB(143, 188, 187),
-		Text = Color3.fromRGB(236, 239, 244),
-		Accent = Color3.fromRGB(136, 192, 208),
-		ScrollTrack = Color3.fromRGB(52, 59, 73),
-		ScrollThumb = Color3.fromRGB(129, 161, 193),
-		DockSlot = Color3.fromRGB(67, 76, 94)
-	},
 	Dracula = {
 		Name = "Dracula",
 		Preview = Color3.fromRGB(40, 42, 54),
@@ -193,119 +137,126 @@ Themes.Presets = {
 		ScrollThumb = Color3.fromRGB(200, 48, 48),
 		DockSlot = Color3.fromRGB(48, 30, 30)
 	},
-	Amber = {
-		Name = "Amber",
-		Preview = Color3.fromRGB(30, 26, 20),
-		PreviewAccent = Color3.fromRGB(245, 166, 35),
-		MainBg = Color3.fromRGB(30, 26, 20),
-		TopBar = Color3.fromRGB(22, 19, 14),
-		TabBg = Color3.fromRGB(44, 38, 29),
-		ColumnBg = Color3.fromRGB(25, 21, 16),
-		ElementBg = Color3.fromRGB(48, 41, 31),
-		TrackBg = Color3.fromRGB(66, 56, 42),
-		KnobOff = Color3.fromRGB(168, 86, 74),
-		KnobOn = Color3.fromRGB(245, 166, 35),
-		SliderKnob = Color3.fromRGB(255, 185, 65),
-		Text = Color3.fromRGB(252, 246, 235),
-		Accent = Color3.fromRGB(245, 166, 35),
-		ScrollTrack = Color3.fromRGB(38, 33, 25),
-		ScrollThumb = Color3.fromRGB(225, 150, 30),
-		DockSlot = Color3.fromRGB(50, 43, 33)
+
+	-- ==================== СВЕТЛЫЕ ТЕМЫ ====================
+	Light = {
+		Name = "Light",
+		Preview = Color3.fromRGB(214, 214, 214),
+		PreviewAccent = nil,
+		MainBg = Color3.fromRGB(214, 214, 214),
+		TopBar = Color3.fromRGB(182, 182, 182),
+		TabBg = Color3.fromRGB(205, 205, 205),
+		ColumnBg = Color3.fromRGB(182, 182, 182),
+		ElementBg = Color3.fromRGB(214, 214, 214),
+		TrackBg = Color3.fromRGB(162, 162, 162),
+		KnobOff = Color3.fromRGB(172, 104, 104),
+		KnobOn = Color3.fromRGB(98, 178, 118),
+		SliderKnob = Color3.fromRGB(198, 198, 198),
+		Text = Color3.fromRGB(255, 255, 255),
+		Accent = Color3.fromRGB(255, 255, 255),
+		ScrollTrack = Color3.fromRGB(165, 165, 165),
+		ScrollThumb = Color3.fromRGB(194, 194, 194),
+		DockSlot = Color3.fromRGB(255, 255, 255)
 	},
-	Emerald = {
-		Name = "Emerald",
-		Preview = Color3.fromRGB(18, 29, 24),
-		PreviewAccent = Color3.fromRGB(46, 204, 113),
-		MainBg = Color3.fromRGB(18, 29, 24),
-		TopBar = Color3.fromRGB(13, 21, 17),
-		TabBg = Color3.fromRGB(26, 43, 35),
-		ColumnBg = Color3.fromRGB(15, 24, 20),
-		ElementBg = Color3.fromRGB(29, 48, 39),
-		TrackBg = Color3.fromRGB(40, 66, 54),
-		KnobOff = Color3.fromRGB(172, 82, 82),
-		KnobOn = Color3.fromRGB(46, 204, 113),
-		SliderKnob = Color3.fromRGB(72, 224, 136),
-		Text = Color3.fromRGB(236, 252, 243),
-		Accent = Color3.fromRGB(46, 204, 113),
-		ScrollTrack = Color3.fromRGB(22, 36, 30),
-		ScrollThumb = Color3.fromRGB(40, 185, 102),
-		DockSlot = Color3.fromRGB(31, 52, 42)
-	}
-}
-
-Themes.Order = {
-	"Dark",
-	"Light",
-	"LightPurple",
-	"DarkPurple",
-	"Neverlose",
-	"Fatality",
-	"Skeet",
-	"Nord",
-	"Dracula",
-	"Crimson",
-	"Amber",
-	"Emerald"
-}
-
-local TWEEN_INFO = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
-function Themes.new(initialThemeName)
-	local self = {
-		Current = Themes.Presets[initialThemeName] or Themes.Presets.Light,
-		Bindings = {},
-		Listeners = {},
-		ActiveTweens = {}
-	}
-
-	function self:TweenProperty(instance, property, targetColor)
-		if not instance or not instance.Parent or not targetColor then return end
-		if not self.ActiveTweens[instance] then
-			self.ActiveTweens[instance] = {}
-		end
-		local prevTween = self.ActiveTweens[instance][property]
-		if prevTween then
-			prevTween:Cancel()
-		end
-		local tw = TweenService:Create(instance, TWEEN_INFO, { [property] = targetColor })
-		self.ActiveTweens[instance][property] = tw
-		tw:Play()
-	end
-
-	function self:Bind(instance, property, themeKey)
-		instance[property] = self.Current[themeKey]
-		table.insert(self.Bindings, {
-			Instance = instance,
-			Property = property,
-			Key = themeKey
-		})
-	end
-
-	function self:OnChanged(fn)
-		table.insert(self.Listeners, fn)
-	end
-
-	function self:SetTheme(themeName)
-		local target = Themes.Presets[themeName]
-		if not target or self.Current == target then return end
-		self.Current = target
-
-		for i = #self.Bindings, 1, -1 do
-			local b = self.Bindings[i]
-			if b.Instance and b.Instance.Parent then
-				self:TweenProperty(b.Instance, b.Property, target[b.Key])
-			else
-				self.ActiveTweens[b.Instance] = nil
-				table.remove(self.Bindings, i)
-			end
-		end
-
-		for _, fn in ipairs(self.Listeners) do
-			task.spawn(fn, target, self)
-		end
-	end
-
-	return self
-end
-
-_G.PrismUI.Themes = Themes
+	LightPurple = {
+		Name = "LightPurple",
+		Preview = Color3.fromRGB(214, 214, 214),
+		PreviewAccent = Color3.fromRGB(98, 92, 186),
+		MainBg = Color3.fromRGB(214, 214, 214),
+		TopBar = Color3.fromRGB(182, 182, 182),
+		TabBg = Color3.fromRGB(205, 205, 205),
+		ColumnBg = Color3.fromRGB(182, 182, 182),
+		ElementBg = Color3.fromRGB(214, 214, 214),
+		TrackBg = Color3.fromRGB(162, 162, 162),
+		KnobOff = Color3.fromRGB(172, 104, 104),
+		KnobOn = Color3.fromRGB(98, 92, 186),
+		SliderKnob = Color3.fromRGB(130, 124, 220),
+		Text = Color3.fromRGB(255, 255, 255),
+		Accent = Color3.fromRGB(98, 92, 186),
+		ScrollTrack = Color3.fromRGB(165, 165, 165),
+		ScrollThumb = Color3.fromRGB(115, 108, 210),
+		DockSlot = Color3.fromRGB(255, 255, 255)
+	},
+	LightBlue = {
+		Name = "LightBlue",
+		Preview = Color3.fromRGB(196, 212, 226),
+		PreviewAccent = Color3.fromRGB(56, 148, 232),
+		MainBg = Color3.fromRGB(196, 212, 226),
+		TopBar = Color3.fromRGB(166, 186, 204),
+		TabBg = Color3.fromRGB(186, 204, 220),
+		ColumnBg = Color3.fromRGB(168, 188, 206),
+		ElementBg = Color3.fromRGB(198, 214, 228),
+		TrackBg = Color3.fromRGB(146, 168, 188),
+		KnobOff = Color3.fromRGB(185, 102, 108),
+		KnobOn = Color3.fromRGB(56, 148, 232),
+		SliderKnob = Color3.fromRGB(84, 168, 242),
+		Text = Color3.fromRGB(255, 255, 255),
+		Accent = Color3.fromRGB(56, 148, 232),
+		ScrollTrack = Color3.fromRGB(152, 172, 192),
+		ScrollThumb = Color3.fromRGB(78, 162, 238),
+		DockSlot = Color3.fromRGB(240, 248, 255)
+	},
+	LightMint = {
+		Name = "LightMint",
+		Preview = Color3.fromRGB(194, 218, 208),
+		PreviewAccent = Color3.fromRGB(44, 172, 124),
+		MainBg = Color3.fromRGB(194, 218, 208),
+		TopBar = Color3.fromRGB(164, 192, 180),
+		TabBg = Color3.fromRGB(184, 210, 199),
+		ColumnBg = Color3.fromRGB(166, 194, 182),
+		ElementBg = Color3.fromRGB(196, 220, 210),
+		TrackBg = Color3.fromRGB(144, 174, 162),
+		KnobOff = Color3.fromRGB(185, 102, 102),
+		KnobOn = Color3.fromRGB(44, 172, 124),
+		SliderKnob = Color3.fromRGB(68, 192, 144),
+		Text = Color3.fromRGB(255, 255, 255),
+		Accent = Color3.fromRGB(44, 172, 124),
+		ScrollTrack = Color3.fromRGB(150, 178, 166),
+		ScrollThumb = Color3.fromRGB(62, 186, 138),
+		DockSlot = Color3.fromRGB(240, 252, 247)
+	},
+	LightSakura = {
+		Name = "LightSakura",
+		Preview = Color3.fromRGB(224, 198, 210),
+		PreviewAccent = Color3.fromRGB(218, 86, 142),
+		MainBg = Color3.fromRGB(224, 198, 210),
+		TopBar = Color3.fromRGB(196, 166, 180),
+		TabBg = Color3.fromRGB(215, 188, 201),
+		ColumnBg = Color3.fromRGB(198, 168, 182),
+		ElementBg = Color3.fromRGB(226, 200, 212),
+		TrackBg = Color3.fromRGB(178, 148, 162),
+		KnobOff = Color3.fromRGB(168, 96, 108),
+		KnobOn = Color3.fromRGB(218, 86, 142),
+		SliderKnob = Color3.fromRGB(232, 112, 162),
+		Text = Color3.fromRGB(255, 255, 255),
+		Accent = Color3.fromRGB(218, 86, 142),
+		ScrollTrack = Color3.fromRGB(182, 152, 166),
+		ScrollThumb = Color3.fromRGB(225, 102, 154),
+		DockSlot = Color3.fromRGB(255, 242, 248)
+	},
+	LightPeach = {
+		Name = "LightPeach",
+		Preview = Color3.fromRGB(226, 206, 190),
+		PreviewAccent = Color3.fromRGB(230, 126, 54),
+		MainBg = Color3.fromRGB(226, 206, 190),
+		TopBar = Color3.fromRGB(198, 176, 158),
+		TabBg = Color3.fromRGB(216, 196, 180),
+		ColumnBg = Color3.fromRGB(200, 178, 160),
+		ElementBg = Color3.fromRGB(228, 208, 192),
+		TrackBg = Color3.fromRGB(180, 158, 140),
+		KnobOff = Color3.fromRGB(178, 98, 98),
+		KnobOn = Color3.fromRGB(230, 126, 54),
+		SliderKnob = Color3.fromRGB(242, 146, 78),
+		Text = Color3.fromRGB(255, 255, 255),
+		Accent = Color3.fromRGB(230, 126, 54),
+		ScrollTrack = Color3.fromRGB(184, 162, 144),
+		ScrollThumb = Color3.fromRGB(236, 138, 68),
+		DockSlot = Color3.fromRGB(255, 246, 238)
+	},
+	LightLavender = {
+		Name = "LightLavender",
+		Preview = Color3.fromRGB(210, 202, 228),
+		PreviewAccent = Color3.fromRGB(142, 96, 226),
+		MainBg = Color3.fromRGB(210, 202, 228),
+		TopBar = Color3.fromRGB(180, 170, 202),
+		TabBg = Color3.
